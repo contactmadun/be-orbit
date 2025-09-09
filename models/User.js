@@ -6,12 +6,13 @@ module.exports = (sequelize, DataTypes) => {
         autoIncrement: true,
         allowNull: false, 
       },
+      storeId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
       name: {
         type: DataTypes.STRING,
         allowNull: false
-      },
-      nameOutlet: {
-        type: DataTypes.STRING,
       },
       phoneNumber: {
         type: DataTypes.INTEGER,
@@ -23,6 +24,11 @@ module.exports = (sequelize, DataTypes) => {
       password: {
         type: DataTypes.STRING,
         allowNull: false
+      },
+      role: {
+        type: DataTypes.ENUM('system_admin', 'super_admin', 'cashier'),
+        defaultValue: 'super_admin',
+        allowNull: false,
       },
       status: {
         type: DataTypes.ENUM("inactive", "active"),
@@ -39,10 +45,6 @@ module.exports = (sequelize, DataTypes) => {
       imageProfil: {
         type: DataTypes.STRING
       },
-      token: {
-        type: DataTypes.INTEGER,
-        defaultValue: 20
-      },
       expiresResetToken: {
         type: DataTypes.DATE,
         allowNull: true,
@@ -51,13 +53,20 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.DATE,
         allowNull: false,
       },
-      updatedAt: {
+      updatedAt: {  
         type: DataTypes.DATE,
         allowNull: false,
       }
     },{
         tableName: 'users'
     });
+
+    User.associate = (models) => {
+        User.belongsTo(models.Store, {
+            foreignKey: 'storeId',
+            as: 'store',
+        });
+    };
 
     return User;
 }

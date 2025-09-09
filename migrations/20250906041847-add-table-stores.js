@@ -1,4 +1,5 @@
 'use strict';
+
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up (queryInterface, Sequelize) {
@@ -8,38 +9,39 @@ module.exports = {
      * Example:
      * await queryInterface.createTable('users', { id: Sequelize.INTEGER });
      */
-
-    await queryInterface.createTable('users', { 
+    await queryInterface.createTable('stores', { 
       id: {
         type: Sequelize.INTEGER,
         primaryKey: true,
         autoIncrement: true,
-        allowNull: false, 
-      },
-      name: {
-        type: Sequelize.STRING,
         allowNull: false
+      },
+      ownerId: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        references: {
+          model: 'users',
+          key: 'id',
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'CASCADE'
       },
       nameOutlet: {
         type: Sequelize.STRING,
-      },
-      phoneNumber: {
-        type: Sequelize.INTEGER,
-      },
-      email: {
-        type: Sequelize.STRING,
         allowNull: false
       },
-      password: {
-        type: Sequelize.STRING,
-        allowNull: false
+      trialExpiredAt: {
+        type: Sequelize.DATE,
+        allowNull: false,
+      },
+      tokenExpiredAt: {
+        type: Sequelize.DATE,
+        allowNull: false,
       },
       status: {
-        type: Sequelize.ENUM("inactive", "active"),
-        defaultValue: "inactive" 
-      },
-      imageProfil: {
-        type: Sequelize.STRING
+        type: Sequelize.ENUM('active', 'expired', 'suspended'),
+        allowNull: false,
+        defaultValue: 'active'
       },
       createdAt: {
         type: Sequelize.DATE,
@@ -49,7 +51,7 @@ module.exports = {
         type: Sequelize.DATE,
         allowNull: false,
       }
-    });
+      }); 
   },
 
   async down (queryInterface, Sequelize) {
@@ -59,6 +61,7 @@ module.exports = {
      * Example:
      * await queryInterface.dropTable('users');
      */
-    await queryInterface.dropTable('users');
+
+    await queryInterface.dropTable('stores');
   }
 };

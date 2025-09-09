@@ -11,12 +11,18 @@ module.exports = {
      */
     await queryInterface.addColumn(
       'users', // nama tabel
-      'expiresResetToken', // nama kolom baru
+      'storeId', // nama kolom baru
       {
-        type: Sequelize.DATE,
+        type: Sequelize.INTEGER,
         allowNull: true,
-        after: 'resetToken', // posisikan setelah `status`
-      }
+        after: 'id',
+        references: {
+          model: 'stores',
+          key: 'id',
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL',
+      },
     );
   },
 
@@ -27,6 +33,7 @@ module.exports = {
      * Example:
      * await queryInterface.dropTable('users');
      */
-    await queryInterface.removeColumn('users', 'expiresResetToken');
+    await queryInterface.removeColumn('users', 'storeId');  
+  
   }
 };

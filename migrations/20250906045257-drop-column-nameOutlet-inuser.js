@@ -9,15 +9,7 @@ module.exports = {
      * Example:
      * await queryInterface.createTable('users', { id: Sequelize.INTEGER });
      */
-    await queryInterface.addColumn(
-      'users', // nama tabel
-      'expiresResetToken', // nama kolom baru
-      {
-        type: Sequelize.DATE,
-        allowNull: true,
-        after: 'resetToken', // posisikan setelah `status`
-      }
-    );
+    await queryInterface.removeColumn('users', 'nameOutlet');
   },
 
   async down (queryInterface, Sequelize) {
@@ -27,6 +19,5 @@ module.exports = {
      * Example:
      * await queryInterface.dropTable('users');
      */
-    await queryInterface.removeColumn('users', 'expiresResetToken');
   }
 };

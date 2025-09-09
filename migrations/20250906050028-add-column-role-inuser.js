@@ -11,12 +11,13 @@ module.exports = {
      */
     await queryInterface.addColumn(
       'users', // nama tabel
-      'expiresResetToken', // nama kolom baru
+      'role', // nama kolom baru
       {
-        type: Sequelize.DATE,
-        allowNull: true,
-        after: 'resetToken', // posisikan setelah `status`
-      }
+        type: Sequelize.ENUM('system_admin', 'super_admin', 'cashier'),
+        defaultValue: 'super_admin',
+        allowNull: false,
+        after: 'password',
+      },
     );
   },
 
@@ -27,6 +28,6 @@ module.exports = {
      * Example:
      * await queryInterface.dropTable('users');
      */
-    await queryInterface.removeColumn('users', 'expiresResetToken');
+    await queryInterface.removeColumn('users', 'role');
   }
 };

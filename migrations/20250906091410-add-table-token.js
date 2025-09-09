@@ -1,4 +1,5 @@
 'use strict';
+
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up (queryInterface, Sequelize) {
@@ -8,38 +9,44 @@ module.exports = {
      * Example:
      * await queryInterface.createTable('users', { id: Sequelize.INTEGER });
      */
-
-    await queryInterface.createTable('users', { 
-      id: {
+    await queryInterface.createTable('tokens', { 
+      id:{
         type: Sequelize.INTEGER,
         primaryKey: true,
         autoIncrement: true,
-        allowNull: false, 
+        allowNull: false,
       },
-      name: {
-        type: Sequelize.STRING,
-        allowNull: false
-      },
-      nameOutlet: {
-        type: Sequelize.STRING,
-      },
-      phoneNumber: {
+      storeId: {
         type: Sequelize.INTEGER,
+        allowNull: false,
+        references: {
+          model: 'stores',
+          key: 'id'
+        },
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
       },
-      email: {
-        type: Sequelize.STRING,
+      daysAdded: {
+        type: Sequelize.INTEGER,
         allowNull: false
       },
-      password: {
-        type: Sequelize.STRING,
+      source: {
+        type: Sequelize.ENUM('manual', 'gateway'),
         allowNull: false
       },
-      status: {
-        type: Sequelize.ENUM("inactive", "active"),
-        defaultValue: "inactive" 
+      note: {
+        type: Sequelize.STRING(255),
+        allowNull: true
       },
-      imageProfil: {
-        type: Sequelize.STRING
+      createdBy: {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        references: {
+          model: 'users',
+          key: 'id',
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'CASCADE'
       },
       createdAt: {
         type: Sequelize.DATE,
@@ -49,7 +56,7 @@ module.exports = {
         type: Sequelize.DATE,
         allowNull: false,
       }
-    });
+      }); 
   },
 
   async down (queryInterface, Sequelize) {
@@ -59,6 +66,6 @@ module.exports = {
      * Example:
      * await queryInterface.dropTable('users');
      */
-    await queryInterface.dropTable('users');
+    await queryInterface.dropTable('stores');
   }
 };

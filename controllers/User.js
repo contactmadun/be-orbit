@@ -4,11 +4,12 @@ const v = new Validator();
 const nodemailer = require('../config/nodemailer.config');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
-const { User } = require('../models');
-const { where } = require('sequelize');
+const { User, Store, Token, sequelize } = require('../models');
 const { console } = require('inspector');
 
 exports.registerUser = async (req, res) => {
+    const t = await sequelize.transaction();
+
     const schema = {
         name: 'string',
         password: 'string',
@@ -33,14 +34,38 @@ exports.registerUser = async (req, res) => {
         const activationToken = crypto.randomBytes(32).toString('hex');
 
         try {
-            await User.create({ 
+            const newUser = await User.create({ 
+                storeId: null,
                 name: req.body.name,
-                nameOutlet: req.body.outlet,
                 phoneNumber: req.body.number,
                 email: req.body.email,
                 password: hashPassword,
+                role: 'super_admin',
                 activationToken: activationToken
-            });
+            }, { transaction: t });
+
+            const trialDays = 20;
+            const expiredAt = new Date(Date.now() + (trialDays * 24 * 60 * 60 * 1000));
+            const newStore = await Store.create({
+                ownerId: newUser.id,
+                nameOutlet: req.body.outlet,
+                trialExpiredAt: expiredAt,
+                tokenExpiredAt: expiredAt,
+                status: 'active'
+            }, { transaction: t });
+
+            await newUser.update({ storeId: newStore.id}, { transaction: t});
+
+            await Token.create({
+                storeId: newStore.id,
+                daysAdded: trialDays,
+                source: 'manual',
+                note: 'Free trial token',
+                createdBy: newUser.id
+            }, { transaction : t });
+
+            await t.commit();
+
             nodemailer.sendConfirmationEmail(
                 req.body.name,
                 req.body.email,
@@ -48,6 +73,7 @@ exports.registerUser = async (req, res) => {
             )
             res.json({message: 'Berhasil daftar, cek email untuk aktivasi'});
         } catch (error) {
+            await t.rollback();
             console.log(error);
         }
     }
