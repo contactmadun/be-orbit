@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Sep 06, 2025 at 02:34 PM
+-- Generation Time: Sep 09, 2025 at 05:11 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.0.30
 
@@ -20,6 +20,22 @@ SET time_zone = "+00:00";
 --
 -- Database: `orbit_pos`
 --
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `fundsource`
+--
+
+CREATE TABLE `fundsource` (
+  `id` int(11) NOT NULL,
+  `storeId` int(11) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `firstBalance` decimal(10,0) DEFAULT NULL,
+  `runningBalance` decimal(10,0) DEFAULT NULL,
+  `createdAt` datetime NOT NULL,
+  `updatedAt` datetime NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 -- --------------------------------------------------------
 
@@ -62,7 +78,8 @@ INSERT INTO `sequelizemeta` (`name`) VALUES
 ('20250906045652-add-column-storeId-inuser.js'),
 ('20250906050028-add-column-role-inuser.js'),
 ('20250906063245-drop-column-token-inuser.js'),
-('20250906091410-add-table-token.js');
+('20250906091410-add-table-token.js'),
+('20250909134226-add-table-fund-sources.js');
 
 -- --------------------------------------------------------
 
@@ -126,6 +143,13 @@ CREATE TABLE `users` (
 --
 
 --
+-- Indexes for table `fundsource`
+--
+ALTER TABLE `fundsource`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `storeId` (`storeId`);
+
+--
 -- Indexes for table `products`
 --
 ALTER TABLE `products`
@@ -165,6 +189,12 @@ ALTER TABLE `users`
 --
 
 --
+-- AUTO_INCREMENT for table `fundsource`
+--
+ALTER TABLE `fundsource`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
 -- AUTO_INCREMENT for table `products`
 --
 ALTER TABLE `products`
@@ -174,23 +204,29 @@ ALTER TABLE `products`
 -- AUTO_INCREMENT for table `stores`
 --
 ALTER TABLE `stores`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `tokens`
 --
 ALTER TABLE `tokens`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- Constraints for dumped tables
 --
+
+--
+-- Constraints for table `fundsource`
+--
+ALTER TABLE `fundsource`
+  ADD CONSTRAINT `fundsource_ibfk_1` FOREIGN KEY (`storeId`) REFERENCES `stores` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `stores`

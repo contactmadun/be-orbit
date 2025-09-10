@@ -9,6 +9,44 @@ module.exports = {
      * Example:
      * await queryInterface.createTable('users', { id: Sequelize.INTEGER });
      */
+    await queryInterface.createTable('fundSource', { 
+      id:{
+        type: Sequelize.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
+      storeId: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        references: {
+          model: 'stores',
+          key: 'id'
+        },
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
+      },
+      name: {
+        type: Sequelize.STRING,
+        allowNull: false
+      },
+      firstBalance: {
+        type: Sequelize.DECIMAL,
+        default: 0
+      },
+      runningBalance: {
+        type: Sequelize.DECIMAL,
+        default: 0
+      },
+      createdAt: {
+        type: Sequelize.DATE,
+        allowNull: false,
+      },
+      updatedAt: {
+        type: Sequelize.DATE,
+        allowNull: false,
+      }
+      }); 
   },
 
   async down (queryInterface, Sequelize) {
@@ -18,5 +56,6 @@ module.exports = {
      * Example:
      * await queryInterface.dropTable('users');
      */
+    await queryInterface.dropTable('fundSource');
   }
 };

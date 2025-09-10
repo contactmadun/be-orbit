@@ -105,7 +105,16 @@ exports.loginUser = async (req, res) => {
         const { email, password } = req.body;
 
         //cek user
-        const user = await User.findOne({ where: { email } });
+        const user = await User.findOne({ 
+            where: { email }, 
+            include: [
+                {
+                    model: Store,
+                    as: 'store',
+                    attributes: ['id', 'nameOutlet']
+                }
+            ] 
+        });
         if (!user) return res.status(404).json({ message: 'User tidak ditemukan' });
 
         // cek password
@@ -123,10 +132,10 @@ exports.loginUser = async (req, res) => {
         return res.json({
         message: 'Login berhasil',
         token,
-        user: { id: user.id, email: user.email, name: user.name }
+        user: { id: user.id, email: user.email, name: user.name, storeId: user.storeId, store: user.store ? user.store : null }
         });
     } catch (error) {
-        return res.status(500).json({ message: err.message });
+        return res.status(500).json({ message: error.message });
     }
 }
 
