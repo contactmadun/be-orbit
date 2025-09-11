@@ -14,14 +14,6 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: false
       },
-      firstBalance: {
-        type: DataTypes.DECIMAL,
-        default: 0
-      },
-      runningBalance: {
-        type: DataTypes.DECIMAL,
-        default: 0
-      },
       createdAt: {
         type: DataTypes.DATE,
         allowNull: false,
