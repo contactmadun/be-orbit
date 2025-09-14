@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Sep 09, 2025 at 05:11 PM
+-- Generation Time: Sep 11, 2025 at 06:04 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.0.30
 
@@ -24,6 +24,42 @@ SET time_zone = "+00:00";
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `cashier_fund_balances`
+--
+
+CREATE TABLE `cashier_fund_balances` (
+  `id` int(11) NOT NULL,
+  `cashierSessionId` int(11) NOT NULL,
+  `fundSourceId` int(11) NOT NULL,
+  `openingBalance` decimal(10,0) NOT NULL,
+  `currentBalance` decimal(10,0) NOT NULL,
+  `closingBalance` decimal(10,0) DEFAULT NULL,
+  `variance` decimal(10,0) DEFAULT 0,
+  `createdAt` datetime NOT NULL,
+  `updatedAt` datetime NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `cashier_sessions`
+--
+
+CREATE TABLE `cashier_sessions` (
+  `id` int(11) NOT NULL,
+  `userId` int(11) NOT NULL,
+  `storeId` int(11) NOT NULL,
+  `openedAt` datetime NOT NULL,
+  `closedAt` datetime NOT NULL,
+  `status` enum('open','close') DEFAULT 'open',
+  `note` text DEFAULT NULL,
+  `createdAt` datetime NOT NULL,
+  `updatedAt` datetime NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `fundsource`
 --
 
@@ -31,8 +67,6 @@ CREATE TABLE `fundsource` (
   `id` int(11) NOT NULL,
   `storeId` int(11) NOT NULL,
   `name` varchar(255) NOT NULL,
-  `firstBalance` decimal(10,0) DEFAULT NULL,
-  `runningBalance` decimal(10,0) DEFAULT NULL,
   `createdAt` datetime NOT NULL,
   `updatedAt` datetime NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
@@ -79,7 +113,11 @@ INSERT INTO `sequelizemeta` (`name`) VALUES
 ('20250906050028-add-column-role-inuser.js'),
 ('20250906063245-drop-column-token-inuser.js'),
 ('20250906091410-add-table-token.js'),
-('20250909134226-add-table-fund-sources.js');
+('20250909134226-add-table-fund-sources.js'),
+('20250911142144-drop-column-firstBalance.js'),
+('20250911142328-drop-column-lastBalance.js'),
+('20250911142737-add-table-cashier-session.js'),
+('20250911144754-add-table-cashier-fund-balances.js');
 
 -- --------------------------------------------------------
 
@@ -111,8 +149,8 @@ CREATE TABLE `tokens` (
   `source` enum('manual','gateway') NOT NULL,
   `note` varchar(255) DEFAULT NULL,
   `createdBy` int(11) DEFAULT NULL,
-  `createdAt` datetime NOT NULL DEFAULT current_timestamp(),
-  `updatedAt` datetime NOT NULL DEFAULT current_timestamp()
+  `createdAt` datetime NOT NULL,
+  `updatedAt` datetime NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 -- --------------------------------------------------------
@@ -141,6 +179,22 @@ CREATE TABLE `users` (
 --
 -- Indexes for dumped tables
 --
+
+--
+-- Indexes for table `cashier_fund_balances`
+--
+ALTER TABLE `cashier_fund_balances`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `cashierSessionId` (`cashierSessionId`),
+  ADD KEY `fundSourceId` (`fundSourceId`);
+
+--
+-- Indexes for table `cashier_sessions`
+--
+ALTER TABLE `cashier_sessions`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `userId` (`userId`),
+  ADD KEY `storeId` (`storeId`);
 
 --
 -- Indexes for table `fundsource`
@@ -189,6 +243,18 @@ ALTER TABLE `users`
 --
 
 --
+-- AUTO_INCREMENT for table `cashier_fund_balances`
+--
+ALTER TABLE `cashier_fund_balances`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT for table `cashier_sessions`
+--
+ALTER TABLE `cashier_sessions`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
 -- AUTO_INCREMENT for table `fundsource`
 --
 ALTER TABLE `fundsource`
@@ -204,23 +270,37 @@ ALTER TABLE `products`
 -- AUTO_INCREMENT for table `stores`
 --
 ALTER TABLE `stores`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `tokens`
 --
 ALTER TABLE `tokens`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- Constraints for dumped tables
 --
+
+--
+-- Constraints for table `cashier_fund_balances`
+--
+ALTER TABLE `cashier_fund_balances`
+  ADD CONSTRAINT `cashier_fund_balances_ibfk_1` FOREIGN KEY (`cashierSessionId`) REFERENCES `cashier_sessions` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `cashier_fund_balances_ibfk_2` FOREIGN KEY (`fundSourceId`) REFERENCES `fundsource` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `cashier_sessions`
+--
+ALTER TABLE `cashier_sessions`
+  ADD CONSTRAINT `cashier_sessions_ibfk_1` FOREIGN KEY (`userId`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `cashier_sessions_ibfk_2` FOREIGN KEY (`storeId`) REFERENCES `stores` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `fundsource`
