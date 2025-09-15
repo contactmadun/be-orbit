@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Sep 11, 2025 at 06:04 PM
+-- Generation Time: Sep 14, 2025 at 03:46 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.0.30
 
@@ -20,6 +20,21 @@ SET time_zone = "+00:00";
 --
 -- Database: `orbit_pos`
 --
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `brands`
+--
+
+CREATE TABLE `brands` (
+  `id` int(11) NOT NULL,
+  `storeId` int(11) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `status` enum('inactive','active') DEFAULT 'active',
+  `createdAt` datetime NOT NULL,
+  `updatedAt` datetime NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 -- --------------------------------------------------------
 
@@ -53,6 +68,21 @@ CREATE TABLE `cashier_sessions` (
   `closedAt` datetime NOT NULL,
   `status` enum('open','close') DEFAULT 'open',
   `note` text DEFAULT NULL,
+  `createdAt` datetime NOT NULL,
+  `updatedAt` datetime NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `categories`
+--
+
+CREATE TABLE `categories` (
+  `id` int(11) NOT NULL,
+  `storeId` int(11) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `status` enum('inactive','active') DEFAULT 'active',
   `createdAt` datetime NOT NULL,
   `updatedAt` datetime NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
@@ -117,7 +147,11 @@ INSERT INTO `sequelizemeta` (`name`) VALUES
 ('20250911142144-drop-column-firstBalance.js'),
 ('20250911142328-drop-column-lastBalance.js'),
 ('20250911142737-add-table-cashier-session.js'),
-('20250911144754-add-table-cashier-fund-balances.js');
+('20250911144754-add-table-cashier-fund-balances.js'),
+('20250914014644-add-table-categories.js'),
+('20250914015109-add-table-brand.js'),
+('20250914122102-add-column-storeid-incategory.js'),
+('20250914130924-add-column-storeid-inbrand.js');
 
 -- --------------------------------------------------------
 
@@ -181,6 +215,13 @@ CREATE TABLE `users` (
 --
 
 --
+-- Indexes for table `brands`
+--
+ALTER TABLE `brands`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `brands_storeId_foreign_idx` (`storeId`);
+
+--
 -- Indexes for table `cashier_fund_balances`
 --
 ALTER TABLE `cashier_fund_balances`
@@ -195,6 +236,13 @@ ALTER TABLE `cashier_sessions`
   ADD PRIMARY KEY (`id`),
   ADD KEY `userId` (`userId`),
   ADD KEY `storeId` (`storeId`);
+
+--
+-- Indexes for table `categories`
+--
+ALTER TABLE `categories`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `categories_storeId_foreign_idx` (`storeId`);
 
 --
 -- Indexes for table `fundsource`
@@ -243,6 +291,12 @@ ALTER TABLE `users`
 --
 
 --
+-- AUTO_INCREMENT for table `brands`
+--
+ALTER TABLE `brands`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
 -- AUTO_INCREMENT for table `cashier_fund_balances`
 --
 ALTER TABLE `cashier_fund_balances`
@@ -252,6 +306,12 @@ ALTER TABLE `cashier_fund_balances`
 -- AUTO_INCREMENT for table `cashier_sessions`
 --
 ALTER TABLE `cashier_sessions`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
+-- AUTO_INCREMENT for table `categories`
+--
+ALTER TABLE `categories`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
@@ -270,23 +330,29 @@ ALTER TABLE `products`
 -- AUTO_INCREMENT for table `stores`
 --
 ALTER TABLE `stores`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `tokens`
 --
 ALTER TABLE `tokens`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- Constraints for dumped tables
 --
+
+--
+-- Constraints for table `brands`
+--
+ALTER TABLE `brands`
+  ADD CONSTRAINT `brands_storeId_foreign_idx` FOREIGN KEY (`storeId`) REFERENCES `stores` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `cashier_fund_balances`
@@ -301,6 +367,12 @@ ALTER TABLE `cashier_fund_balances`
 ALTER TABLE `cashier_sessions`
   ADD CONSTRAINT `cashier_sessions_ibfk_1` FOREIGN KEY (`userId`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   ADD CONSTRAINT `cashier_sessions_ibfk_2` FOREIGN KEY (`storeId`) REFERENCES `stores` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `categories`
+--
+ALTER TABLE `categories`
+  ADD CONSTRAINT `categories_storeId_foreign_idx` FOREIGN KEY (`storeId`) REFERENCES `stores` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `fundsource`

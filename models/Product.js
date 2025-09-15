@@ -4,18 +4,48 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true,
-        allowNull: false, 
+        allowNull: false
+      },
+      storeId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+      },
+      categoryId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+      },
+      brandId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
       },
       name: {
         type: DataTypes.STRING,
         allowNull: false
       },
-      name: {
-        type: DataTypes.STRING,
-        allowNull: false
+      description: {
+        type: DataTypes.TEXT
       },
-      descrption: {
-        type: DataTypes.TEXT,
+      purchasePrice: {
+        type: DataTypes.DECIMAL,
+        allowNull: false,
+      },
+      agentPrice: {
+        type: DataTypes.DECIMAL,
+        allowNull: false,
+      },
+      retailPrice: {
+        type: DataTypes.DECIMAL,
+        allowNull: false,
+      },
+      stok: {
+        type: DataTypes.INTEGER,
+      },
+      minimumStok: {
+        type: DataTypes.INTEGER,
+      },
+      status: {
+        type: DataTypes.ENUM("inactive", "active"),
+        defaultValue: "active" 
       },
       createdAt: {
         type: DataTypes.DATE,
@@ -28,6 +58,21 @@ module.exports = (sequelize, DataTypes) => {
     },{
         tableName: 'products'
     });
+
+    Product.associate = (models) => {
+        Product.belongsTo(models.Store, {
+            foreignKey: 'storeId',
+            as: 'store',
+        });
+        Product.belongsTo(models.Categorie, {
+            foreignKey: 'categoryId',
+            as: 'categorie',
+        });
+        Product.belongsTo(models.Brand, {
+            foreignKey: 'brandId',
+            as: 'brand',
+        });
+    };
 
     return Product;
 }
