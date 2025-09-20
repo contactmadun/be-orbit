@@ -14,6 +14,11 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: false
       },
+      isDefault: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false
+      },
       createdAt: {
         type: DataTypes.DATE,
         allowNull: false,

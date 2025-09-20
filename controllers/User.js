@@ -4,7 +4,7 @@ const v = new Validator();
 const nodemailer = require('../config/nodemailer.config');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
-const { User, Store, Token, sequelize } = require('../models');
+const { User, Store, Token, sequelize, Fund } = require('../models');
 const { console } = require('inspector');
 
 exports.registerUser = async (req, res) => {
@@ -55,6 +55,14 @@ exports.registerUser = async (req, res) => {
             }, { transaction: t });
 
             await newUser.update({ storeId: newStore.id}, { transaction: t});
+
+            await Fund.create({
+                storeId: newStore.id,
+                name: 'Laci',
+                firstBalance: 0,
+                runningBalance: 0,
+                isDefault: true   // kolom baru untuk penanda laci
+            }, { transaction: t });
 
             await Token.create({
                 storeId: newStore.id,

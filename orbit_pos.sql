@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Sep 14, 2025 at 03:46 PM
+-- Generation Time: Sep 15, 2025 at 04:52 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.0.30
 
@@ -109,8 +109,17 @@ CREATE TABLE `fundsource` (
 
 CREATE TABLE `products` (
   `id` int(11) NOT NULL,
+  `storeId` int(11) NOT NULL,
+  `categoryId` int(11) NOT NULL,
+  `brandId` int(11) NOT NULL,
   `name` varchar(255) NOT NULL,
-  `descrption` text DEFAULT NULL,
+  `description` text DEFAULT NULL,
+  `purchasePrice` decimal(10,0) NOT NULL,
+  `agentPrice` decimal(10,0) NOT NULL,
+  `retailPrice` decimal(10,0) NOT NULL,
+  `stok` int(11) DEFAULT NULL,
+  `minimumStok` int(11) DEFAULT NULL,
+  `status` enum('inactive','active') DEFAULT 'active',
   `createdAt` datetime NOT NULL,
   `updatedAt` datetime NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
@@ -151,7 +160,8 @@ INSERT INTO `sequelizemeta` (`name`) VALUES
 ('20250914014644-add-table-categories.js'),
 ('20250914015109-add-table-brand.js'),
 ('20250914122102-add-column-storeid-incategory.js'),
-('20250914130924-add-column-storeid-inbrand.js');
+('20250914130924-add-column-storeid-inbrand.js'),
+('20250915130816-add-table-products.js');
 
 -- --------------------------------------------------------
 
@@ -255,7 +265,10 @@ ALTER TABLE `fundsource`
 -- Indexes for table `products`
 --
 ALTER TABLE `products`
-  ADD PRIMARY KEY (`id`);
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `storeId` (`storeId`),
+  ADD KEY `categoryId` (`categoryId`),
+  ADD KEY `brandId` (`brandId`);
 
 --
 -- Indexes for table `sequelizemeta`
@@ -294,7 +307,7 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `brands`
 --
 ALTER TABLE `brands`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `cashier_fund_balances`
@@ -312,7 +325,7 @@ ALTER TABLE `cashier_sessions`
 -- AUTO_INCREMENT for table `categories`
 --
 ALTER TABLE `categories`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `fundsource`
@@ -324,25 +337,25 @@ ALTER TABLE `fundsource`
 -- AUTO_INCREMENT for table `products`
 --
 ALTER TABLE `products`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `stores`
 --
 ALTER TABLE `stores`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `tokens`
 --
 ALTER TABLE `tokens`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- Constraints for dumped tables
@@ -379,6 +392,14 @@ ALTER TABLE `categories`
 --
 ALTER TABLE `fundsource`
   ADD CONSTRAINT `fundsource_ibfk_1` FOREIGN KEY (`storeId`) REFERENCES `stores` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `products`
+--
+ALTER TABLE `products`
+  ADD CONSTRAINT `products_ibfk_1` FOREIGN KEY (`storeId`) REFERENCES `stores` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `products_ibfk_2` FOREIGN KEY (`categoryId`) REFERENCES `categories` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `products_ibfk_3` FOREIGN KEY (`brandId`) REFERENCES `brands` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `stores`
