@@ -60,3 +60,29 @@ exports.getFund = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
+exports.getFundDefault = async (req, res) => {
+  try {
+    const { storeId } = req.params;
+
+    if (!storeId) {
+      return res.status(400).json({ message: "storeId wajib dikirim" });
+    }
+
+    const fund = await Fund.findOne({
+      where: {
+        storeId: storeId,
+        isDefault: 1
+      }
+    });
+
+    if (!fund) {
+      return res.status(404).json({ message: "Fund default tidak ditemukan" });
+    }
+
+    return res.json(fund);
+  } catch (error) {
+    console.error("Error getFundDefault:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};

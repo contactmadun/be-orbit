@@ -1,4 +1,4 @@
-const { openCashier, getActiveSession } = require('../controllers/Cashier');
+const { openCashier, getActiveSession, closeCashier } = require('../controllers/Cashier');
 const authMiddleware = require('../middleware/authMiddleware');
 
 var express = require('express');
@@ -9,6 +9,7 @@ var router = express.Router();
 //   res.send('respond with a resource');
 // });
 router.post('/', openCashier);
+router.post('/close', closeCashier);
 router.get('/session/:storeId', getActiveSession);
 
 module.exports = router;

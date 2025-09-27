@@ -1,4 +1,4 @@
-const { addFund, getFund } = require('../controllers/Fund');
+const { addFund, getFund, getFundDefault } = require('../controllers/Fund');
 const authMiddleware = require('../middleware/authMiddleware');
 
 var express = require('express');
@@ -10,5 +10,6 @@ var router = express.Router();
 // });
 router.post('/', addFund);
 router.get('/:storeId', getFund);
+router.get('/default/:storeId', getFundDefault);
 
 module.exports = router;
