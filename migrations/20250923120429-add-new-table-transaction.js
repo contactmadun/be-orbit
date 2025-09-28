@@ -38,7 +38,7 @@ module.exports = {
       },
       fund_source_id: {
         type: Sequelize.INTEGER,
-        allowNull: false,
+        allowNull: true,
         references: {
           model: 'fundsource',
           key: 'id'

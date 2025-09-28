@@ -20,7 +20,7 @@ module.exports = (sequelize, DataTypes) => {
       },
       fund_source_id: {
         type: DataTypes.BIGINT,
-        allowNull: false,
+        allowNull: true,
       },
       product_id: {
         type: DataTypes.BIGINT,
