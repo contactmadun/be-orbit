@@ -40,6 +40,10 @@ module.exports = (sequelize, DataTypes) => {
       stok: {
         type: DataTypes.INTEGER,
       },
+      typeProduct: {
+        type: DataTypes.ENUM('inject', 'stok'),
+        defaultValue: 'stok'
+      },
       minimumStok: {
         type: DataTypes.INTEGER,
       },

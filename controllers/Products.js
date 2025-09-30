@@ -5,26 +5,6 @@ const v = new Validator();
 
 exports.addProduct = async (req, res) => {
  try {
-    // Skema validasi input
-    // const schema = {
-    //   storeId: { type: "number", positive: true, integer: true },
-    //   categoryId: { type: "number", positive: true, integer: true },
-    //   brandId: { type: "number", positive: true, integer: true },
-    //   name: { type: "string", min: 2 },
-    //   description: { type: "string", optional: true },
-    //   purchasePrice: { type: "number", positive: true },
-    //   agentPrice: { type: "number", positive: true },
-    //   retailPrice: { type: "number", positive: true },
-    //   stok: { type: "number", integer: true, optional: true },
-    //   minimumStok: { type: "number", integer: true, optional: true },
-    //   status: { type: "enum", values: ["inactive", "active"], optional: true },
-    // };
-
-    // const validate = v.validate(req.body, schema);
-    // if (validate.length) {
-    //   return res.status(400).json({ message: "Validation failed", errors: validate });
-    // }
-
     // Cek duplikat (nama produk per store harus unik)
     const existingProduct = await Product.findOne({
       where: {
@@ -37,6 +17,9 @@ exports.addProduct = async (req, res) => {
       return res.status(400).json({ message: "Produk dengan nama ini sudah ada di toko ini." });
     }
 
+    const typeProduct =
+      req.body.typeProduct === true ? "inject" : "stok";
+
     // Simpan produk baru
     const newProduct = await Product.create({
       storeId: req.body.storeId,
@@ -47,6 +30,7 @@ exports.addProduct = async (req, res) => {
       purchasePrice: req.body.purchasePrice,
       agentPrice: req.body.agentPrice,
       retailPrice: req.body.retailPrice,
+      typeProduct: typeProduct,
       stok: req.body.stok || 0,
       minimumStok: req.body.minimumStok || 0,
       status: req.body.status || "active",
