@@ -1,13 +1,13 @@
-const { Transaction, CashierFundBalance, Fund, CashierSession, Store } = require('../models');
+const { Transaction, CashierFundBalance, Fund, CashierSession, Product } = require('../models');
 const Validator = require('fastest-validator');
-const { Op } = require("sequelize");
+const { Op, fn, col, literal } = require("sequelize");
 
 const v = new Validator();
 
 exports.addTransactionManual = async (req, res) => {
   const t = await Transaction.sequelize.transaction();
   try {
-    const { storeId, cashier_session_id, fund_source_id, items, note, status, transaction_type } = req.body;
+    const { storeId, cashier_session_id, fund_source_id, customerName, phoneNumber, items, note, status, transaction_type } = req.body;
 
     // --- cek cashier session ---
     const session = await CashierSession.findOne({
@@ -63,6 +63,8 @@ exports.addTransactionManual = async (req, res) => {
       price: item.price,
       total: item.total,
       profit: item.profit,
+      customer_name: customerName, 
+      customer_phone: phoneNumber,
       status,
       transaction_type,
       note
@@ -147,7 +149,9 @@ exports.addTransaction = async (req, res) => {
       fund_source_id, 
       resourceFund, 
       items, 
-      note, 
+      note,
+      customerName,
+      phoneNumber, 
       status, 
       transaction_type 
     } = req.body;
@@ -196,8 +200,8 @@ exports.addTransaction = async (req, res) => {
         cashier_session_id,
         fund_source_id,
         product_id: item.product_id,
-        customer_name: req.body.customer_name || null,
-        customer_phone: req.body.customer_phone || null,
+        customer_name: customerName, 
+        customer_phone: phoneNumber,
         qty: item.qty,
         cost_price: item.cost_price,
         price: item.price,
@@ -287,15 +291,6 @@ exports.getProfit = async (req, res) => {
       return res.status(400).json({ message: "storeId wajib dikirim" });
     }
 
-    // cek apakah ada cashier session aktif
-    // const session = await CashierSession.findOne({
-    //   where: { storeId: storeId, status: "open" }
-    // });
-
-    // if (!session) {
-    //   return res.status(400).json({ message: "Tidak ada cashier session yang aktif" });
-    // }
-
     // range waktu hari ini
     const today = new Date();
     const startOfDay = new Date(today.setHours(0, 0, 0, 0));
@@ -307,7 +302,7 @@ exports.getProfit = async (req, res) => {
         storeId: storeId,
         // cashier_session_id: session.id,
         createdAt: { [Op.between]: [startOfDay, endOfDay] },
-        status: "success" // opsional, kalau kamu ada filter status transaksi
+        status: "Lunas" // opsional, kalau kamu ada filter status transaksi
       }
     });
 
@@ -542,3 +537,114 @@ exports.addTrxTransfer = async (req, res) => {
   }
 };
 
+exports.getReport = async (req, res) => {
+  try {
+    const { storeId, cashierSessionId } = req.params
+
+    if (!storeId || !cashierSessionId) {
+      return res.status(400).json({ message: "storeId dan cashierSessionId wajib dikirim" })
+    }
+
+    // range waktu hari ini
+    const today = new Date()
+    const startOfDay = new Date(today.setHours(0, 0, 0, 0))
+    const endOfDay = new Date(today.setHours(23, 59, 59, 999))
+
+    // 1. total transaksi
+    const totalTransactions = await Transaction.count({
+      where: {
+        storeId,
+        cashier_session_id: cashierSessionId,
+        createdAt: { [Op.between]: [startOfDay, endOfDay] },
+        status: "Lunas"
+      }
+    })
+
+    // 2. total produk terjual
+    const totalProducts = await Transaction.sum("qty", {
+      where: {
+        storeId,
+        cashier_session_id: cashierSessionId,
+        createdAt: { [Op.between]: [startOfDay, endOfDay] },
+        status: "Lunas"
+      }
+    })
+
+    // 3. produk terlaris
+    const bestProduct = await Transaction.findOne({
+      attributes: [
+        "product_id",
+        [fn("SUM", col("qty")), "totalSold"]
+      ],
+      where: {
+        storeId,
+        cashier_session_id: cashierSessionId,
+        createdAt: { [Op.between]: [startOfDay, endOfDay] },
+        status: "Lunas"
+      },
+      include: [
+        {
+          model: Product,
+          as: "product",
+          attributes: ["name"]
+        }
+      ],
+      group: ["product_id", "product.id"],
+      order: [[literal("totalSold"), "DESC"]],
+      limit: 1
+    })
+
+    return res.json({
+      storeId,
+      cashierSessionId,
+      date: startOfDay.toISOString().split("T")[0],
+      totalTransactions,
+      totalProducts: totalProducts || 0,
+      bestProduct: bestProduct?.product?.name || "-"
+    })
+  } catch (error) {
+    console.error("Error getDailyReport:", error)
+    return res.status(500).json({ message: "Internal server error" })
+  }
+}
+
+exports.getLastTransactions = async (req, res) => {
+  try {
+    const { storeId, cashierSessionId } = req.params
+
+    if (!storeId || !cashierSessionId) {
+      return res.status(400).json({ message: "storeId dan cashierSessionId wajib dikirim" })
+    }
+
+    // Ambil 5 transaksi terakhir
+    const transactions = await Transaction.findAll({
+      where: {
+        storeId,
+        cashier_session_id: cashierSessionId,
+        status: "Lunas"
+      },
+      order: [["createdAt", "DESC"]],
+      limit: 5,
+      include: [
+        {
+          model: Product,
+          as: "product", // sesuai di associate
+          attributes: ["id", "name"]
+        }
+      ]
+    })
+
+    // Format hasil
+    const result = transactions.map((tx) => ({
+      id: `TRX-${String(tx.id).padStart(3, "0")}`, // format TRX-001
+      time: tx.createdAt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+      desc: tx.product ? tx.product.name : "Produk tidak diketahui",
+      amount: parseFloat(tx.total) // total transaksi
+    }))
+
+    return res.json(result)
+  } catch (error) {
+    console.error("Error getLastTransactions:", error)
+    return res.status(500).json({ message: "Internal server error" })
+  }
+}

@@ -56,9 +56,9 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false
       },
       status: {
-        type: DataTypes.ENUM('success', 'void', 'bon'),
+        type: DataTypes.ENUM('Lunas', 'void', 'Belum Lunas'),
         allowNull: false,
-        defaultValue: 'success'
+        defaultValue: 'Lunas'
       },
       transaction_type: {
         type: DataTypes.ENUM('manual', 'penjualan', 'transfer', 'tarik', 'jasa', 'grosir'),
