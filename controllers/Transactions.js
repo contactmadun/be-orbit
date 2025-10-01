@@ -638,7 +638,7 @@ exports.getLastTransactions = async (req, res) => {
     const result = transactions.map((tx) => ({
       id: `TRX-${String(tx.id).padStart(3, "0")}`, // format TRX-001
       time: tx.createdAt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
-      desc: tx.product ? tx.product.name : tx.product.note,
+      desc: tx.product?.name || tx.note || "Tanpa keterangan",
       amount: parseFloat(tx.total) // total transaksi
     }))
 
