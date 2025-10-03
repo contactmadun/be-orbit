@@ -13,6 +13,7 @@ var categoryRouter = require('./routes/categorie');
 var brandRouter = require('./routes/brand');
 var productRouter = require('./routes/product');
 var transactionRouter = require('./routes/transaction');
+var financeRouter = require('./routes/finance');
 
 var app = express();
 
@@ -31,5 +32,6 @@ app.use('/cashier', cashierRouter);
 app.use('/category', categoryRouter);
 app.use('/brand', brandRouter);
 app.use('/transaction', transactionRouter);
+app.use('/finance', financeRouter);
 
 module.exports = app;

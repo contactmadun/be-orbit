@@ -484,7 +484,7 @@ exports.addTrxTransfer = async (req, res) => {
     const admBank = Number(adminBank) || 0;
 
     // 5. Update balance
-    defaultFundBalance.currentBalance = defBal + amt + fee;
+    defaultFundBalance.currentBalance = defBal + amt;
     targetFundBalance.currentBalance = tgtBal - (amt + admBank);
 
     await defaultFundBalance.save({ transaction: t });
@@ -616,19 +616,25 @@ exports.getLastTransactions = async (req, res) => {
       return res.status(400).json({ message: "storeId dan cashierSessionId wajib dikirim" })
     }
 
-    // Ambil 5 transaksi terakhir
+    // Range waktu hari ini
+    const today = new Date()
+    const startOfDay = new Date(today.setHours(0, 0, 0, 0))
+    const endOfDay = new Date(today.setHours(23, 59, 59, 999))
+
+    // Ambil 5 transaksi terakhir untuk hari ini
     const transactions = await Transaction.findAll({
       where: {
         storeId,
         cashier_session_id: cashierSessionId,
-        status: "Lunas"
+        status: "Lunas",
+        createdAt: { [Op.between]: [startOfDay, endOfDay] }
       },
       order: [["createdAt", "DESC"]],
       limit: 5,
       include: [
         {
           model: Product,
-          as: "product", // sesuai di associate
+          as: "product",
           attributes: ["id", "name"]
         }
       ]
@@ -639,7 +645,7 @@ exports.getLastTransactions = async (req, res) => {
       id: `TRX-${String(tx.id).padStart(3, "0")}`, // format TRX-001
       time: tx.createdAt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
       desc: tx.product?.name || tx.note || "Tanpa keterangan",
-      amount: parseFloat(tx.total) // total transaksi
+      amount: parseFloat(tx.total)
     }))
 
     return res.json(result)
