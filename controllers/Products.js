@@ -49,13 +49,17 @@ exports.addProduct = async (req, res) => {
 
 exports.getProduct = async (req, res) => {
   try {
-    const { storeId } = req.query;
+    const { storeId, page = 1, limit = 10 } = req.query;
 
     if (!storeId) {
       return res.status(400).json({ message: "storeId is required" });
     }
 
-    const products = await Product.findAll({
+    const pageInt = parseInt(page) || 1;
+    const limitInt = parseInt(limit) || 10;
+    const offset = (pageInt - 1) * limitInt;
+
+    const { count, rows } = await Product.findAndCountAll({
       where: { storeId },
       include: [
         {
@@ -74,12 +78,24 @@ exports.getProduct = async (req, res) => {
           attributes: ['id', 'nameOutlet']
         }
       ],
-      order: [['createdAt', 'DESC']]
+      order: [['createdAt', 'DESC']],
+      limit: limitInt,
+      offset: offset,
     });
 
-    res.json(products);
+    const totalPages = Math.ceil(count / limitInt);
+
+    return res.json({
+      data: rows,
+      totalProducts: count,
+      totalPages,
+      currentPage: pageInt,
+      totalItems: count,
+    });
+
   } catch (err) {
     console.error("Error getProduct:", err);
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
