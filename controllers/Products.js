@@ -99,3 +99,18 @@ exports.getProduct = async (req, res) => {
   }
 };
 
+exports.getProductAll = async (req, res) => { 
+  try { const { storeId } = req.query; 
+  if (!storeId) { return res.status(400).json({ message: "storeId is required" }); } 
+  const products = await Product.findAll({ 
+    where: { storeId }, 
+    include: [ { model: Categorie, as: 'categorie', attributes: ['id', 'name'] }, 
+    { model: Brand, as: 'brand', attributes: ['id', 'name'] }, 
+    { model: Store, as: 'store', attributes: ['id', 'nameOutlet'] } ], 
+    order: [['createdAt', 'DESC']] }); res.json(products); } 
+    
+    catch (err) { console.error("Error getProduct:", err); 
+      
+      res.status(500).json({ message: "Internal server error" }); 
+    } };
+
