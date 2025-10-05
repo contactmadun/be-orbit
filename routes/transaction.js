@@ -1,4 +1,4 @@
-const { addTransaction, addTrxWd, addTrxTransfer, addTransactionManual, getProfit, getReport, getLastTransactions, getDataBon, payBon } = require('../controllers/Transactions');
+const { addTransaction, addTrxWd, addTrxTransfer, addTransactionManual, getProfit, getReport, getLastTransactions, getDataBon, payBon, getTransactions } = require('../controllers/Transactions');
 const authMiddleware = require('../middleware/authMiddleware');
 
 var express = require('express');
@@ -13,5 +13,6 @@ router.get('/profit/:storeId', getProfit);
 router.get('/bon', getDataBon);
 router.get('/report/:storeId/:cashierSessionId', getReport);
 router.get('/:storeId/:cashierSessionId/last-transactions', getLastTransactions);
+router.get('/:storeId', getTransactions);
 
 module.exports = router;

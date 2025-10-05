@@ -657,6 +657,91 @@ exports.getLastTransactions = async (req, res) => {
   }
 }
 
+exports.getTransactions = async (req, res) => {
+  try {
+    const { storeId, cashierSessionId } = req.params;
+
+    if (!storeId) {
+      return res.status(400).json({ message: "storeId wajib dikirim" });
+    }
+
+    // Filter dasar
+    const whereClause = {
+      storeId,
+      status: "Lunas",
+    };
+    if (cashierSessionId) {
+      whereClause.cashier_session_id = cashierSessionId;
+    }
+
+    // Ambil semua transaksi
+    const transactions = await Transaction.findAll({
+      where: whereClause,
+      include: [
+        {
+          model: Product,
+          as: "product",
+          attributes: ["id", "name"],
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+    });
+
+    if (!transactions.length) {
+      return res.json([]);
+    }
+
+    // Group transaksi berdasarkan tanggal
+    const grouped = {};
+    transactions.forEach((tx) => {
+      const date = new Date(tx.createdAt).toLocaleDateString("id-ID", {
+        weekday: "long",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+
+      if (!grouped[date]) {
+        grouped[date] = {
+          date,
+          total: 0,
+          sumProfit: 0,
+          transactions: [],
+        };
+      }
+
+      grouped[date].transactions.push({
+        id: tx.id,
+        title: tx.product?.name || tx.note,
+        code: tx.trxId,
+        status: tx.status,
+        amount: parseFloat(tx.total),
+        profit: parseFloat(tx.profit),
+        time: new Date(tx.createdAt).toLocaleTimeString("id-ID", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        note: tx.note,
+      });
+
+      grouped[date].total += parseFloat(tx.total);
+      grouped[date].sumProfit += parseFloat(tx.profit);
+    });
+
+    // Konversi hasil ke array & urutkan tanggal terbaru
+    const result = Object.values(grouped).sort((a, b) => {
+      const da = new Date(a.date.split(", ")[1]);
+      const db = new Date(b.date.split(", ")[1]);
+      return db - da;
+    });
+
+    return res.json(result);
+  } catch (error) {
+    console.error("Error getTransactions:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 exports.getDataBon = async (req, res) => {
   try {
     const { storeId } = req.query;
