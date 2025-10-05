@@ -83,8 +83,9 @@ exports.addTransactionManual = async (req, res) => {
     });
     if (fundDefaultBalance) {
       const current = parseFloat(fundDefaultBalance.currentBalance) || 0;
+      const newBalance = status === "Lunas" ? current + totalSum : current;
       await fundDefaultBalance.update(
-        { currentBalance: current + totalSum },
+        { currentBalance: newBalance },
         { transaction: t }
       );
     } else {
@@ -92,7 +93,7 @@ exports.addTransactionManual = async (req, res) => {
         cashierSessionId: cashier_session_id,
         fundSourceId: defaultFund.id,
         openingBalance: 0,
-        currentBalance: totalSum,
+        currentBalance: status === "Lunas" ? totalSum : 0,
         closingBalance: null,
         variance: 0,
         createdAt: new Date(),
@@ -152,11 +153,11 @@ exports.addTransaction = async (req, res) => {
       note,
       customerName,
       phoneNumber, 
-      status, 
+      status, // "Lunas" atau "Belum Lunas"
       transaction_type 
     } = req.body;
 
-    // cek cashier session
+    // ✅ Cek session kasir
     const session = await CashierSession.findOne({ 
       where: { id: cashier_session_id, status: "open" }, 
       transaction: t 
@@ -166,13 +167,13 @@ exports.addTransaction = async (req, res) => {
       return res.status(400).json({ message: "Cashier session tidak valid atau sudah ditutup" });
     }
 
-    // generate trxId
+    // ✅ Generate trxId unik harian
     const today = new Date();
     const dd = String(today.getDate()).padStart(2, "0");
     const mm = String(today.getMonth() + 1).padStart(2, "0");
 
-    const startOfDay = new Date(new Date().setHours(0, 0, 0, 0));
-    const endOfDay = new Date(new Date().setHours(23, 59, 59, 999));
+    const startOfDay = new Date(today.setHours(0, 0, 0, 0));
+    const endOfDay = new Date(today.setHours(23, 59, 59, 999));
 
     const lastTransaction = await Transaction.findOne({
       where: { createdAt: { [Op.between]: [startOfDay, endOfDay] } },
@@ -192,7 +193,7 @@ exports.addTransaction = async (req, res) => {
     let totalSum = 0;       // total harga jual
     let sumCostPrice = 0;   // total modal
 
-    // buat transaksi
+    // ✅ Buat transaksi per item
     for (const item of items) {
       const trx = await Transaction.create({
         trxId,
@@ -218,7 +219,7 @@ exports.addTransaction = async (req, res) => {
       sumCostPrice += (parseFloat(item.cost_price) || 0) * (parseInt(item.qty) || 0);
     }
 
-    // update atau buat balance untuk fund_source_id
+    // ✅ Update atau buat fund balance untuk fund_source_id
     const fundBalance = await CashierFundBalance.findOne({
       where: { cashierSessionId: cashier_session_id, fundSourceId: fund_source_id },
       transaction: t,
@@ -227,14 +228,14 @@ exports.addTransaction = async (req, res) => {
 
     if (fundBalance) {
       const current = parseFloat(fundBalance.currentBalance) || 0;
-      const newBalance = current + totalSum;
+      const newBalance = status === "Lunas" ? current + totalSum : current; // ✅ hanya update jika Lunas
       await fundBalance.update({ currentBalance: newBalance }, { transaction: t });
     } else {
       await CashierFundBalance.create({
         cashierSessionId: cashier_session_id,
         fundSourceId: fund_source_id,
         openingBalance: 0,
-        currentBalance: totalSum,
+        currentBalance: status === "Lunas" ? totalSum : 0, // ✅ jika Belum Lunas, tetap 0
         closingBalance: null,
         variance: 0,
         createdAt: new Date(),
@@ -242,7 +243,7 @@ exports.addTransaction = async (req, res) => {
       }, { transaction: t });
     }
 
-    // jika resourceFund ada → kurangi saldo resourceFund dengan sumCostPrice
+    // ✅ Jika ada resourceFund → kurangi saldo modal (cost)
     if (resourceFund) {
       const resourceBalance = await CashierFundBalance.findOne({
         where: { cashierSessionId: cashier_session_id, fundSourceId: resourceFund },
@@ -281,6 +282,7 @@ exports.addTransaction = async (req, res) => {
     res.status(500).json({ message: "Gagal menyimpan transaksi", error: err.message });
   }
 };
+
 
 
 exports.getProfit = async (req, res) => {
@@ -654,3 +656,116 @@ exports.getLastTransactions = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" })
   }
 }
+
+exports.getDataBon = async (req, res) => {
+  try {
+    const { storeId } = req.query;
+
+    if (!storeId) {
+      return res.status(400).json({ message: "storeId wajib dikirim" });
+    }
+
+    // ✅ Ambil semua transaksi yang belum lunas
+    const data = await Transaction.findAll({
+      where: {
+        storeId,
+        status: "Belum Lunas"
+      },
+      include: [
+        {
+          model: Product,
+          as: "product",
+          attributes: ["id", "name"]
+        }
+      ],
+      attributes: ["id", "product_id", "note", "customer_name", "customer_phone", "total", "createdAt"]
+    });
+
+    // ✅ Hitung total nominal piutang & jumlah transaksi
+    const totalPiutang = data.reduce((sum, trx) => sum + parseFloat(trx.total || 0), 0);
+    const jumlahTransaksi = data.length;
+
+    res.status(200).json({
+      message: "Data bon berhasil diambil",
+      totalPiutang,
+      jumlahTransaksi,
+      data
+    });
+  } catch (err) {
+    console.error("Error getDataBon:", err);
+    res.status(500).json({ message: "Gagal mengambil data bon", error: err.message });
+  }
+};
+
+exports.payBon = async (req, res) => {
+  const t = await Transaction.sequelize.transaction();
+  try {
+    const { trxId, storeId, fund_source_id, cashier_session_id } = req.body;
+
+    // 🔍 Cari transaksi bon
+    const trx = await Transaction.findOne({
+      where: { id: trxId, storeId, status: "Belum Lunas" },
+      transaction: t,
+    });
+
+    if (!trx) {
+      await t.rollback();
+      return res.status(404).json({ message: "Transaksi bon tidak ditemukan atau sudah lunas" });
+    }
+
+    // 🔍 Ambil fund source yang dipilih
+    const fund = await Fund.findOne({
+      where: { id: fund_source_id, storeId },
+      transaction: t,
+    });
+    if (!fund) {
+      await t.rollback();
+      return res.status(404).json({ message: "Sumber dana tidak ditemukan" });
+    }
+
+    // 🔍 Cari balance fund untuk sesi kasir ini
+    let fundBalance = await CashierFundBalance.findOne({
+      where: {
+        cashierSessionId: cashier_session_id,
+        fundSourceId: fund_source_id,
+      },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    const totalSum = parseFloat(trx.total) || 0;
+    const current = fundBalance ? parseFloat(fundBalance.currentBalance) || 0 : 0;
+    const newBalance = current + totalSum;
+
+    if (fundBalance) {
+      await fundBalance.update(
+        { currentBalance: newBalance },
+        { transaction: t }
+      );
+    } else {
+      await CashierFundBalance.create({
+        cashierSessionId: trx.cashier_session_id,
+        fundSourceId: fund_source_id,
+        openingBalance: 0,
+        currentBalance: totalSum,
+        closingBalance: null,
+        variance: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }, { transaction: t });
+    }
+
+    // 🔁 Update status transaksi jadi Lunas
+    await trx.update(
+      { status: "Lunas", fund_source_id },
+      { transaction: t }
+    );
+
+    await t.commit();
+    res.status(200).json({ message: "Bon berhasil dilunasi", transaction: trx });
+  } catch (err) {
+    await t.rollback();
+    console.error("Gagal melunasi bon:", err);
+    res.status(500).json({ message: "Gagal melunasi bon", error: err.message });
+  }
+};
