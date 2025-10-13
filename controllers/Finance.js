@@ -1,5 +1,6 @@
 // controllers/CashierController.js
 const { CashierSession, CashierFundBalance, FinanceRecords } = require('../models')
+const { Op } = require('sequelize');
 
 exports.addIncome = async (req, res) => {
   const { storeId, cashier_session_id, fund_source_id, nominal, note } = req.body;
@@ -126,5 +127,58 @@ exports.addExpanse = async (req, res) => {
   } catch (err) {
     console.error("Error expense:", err);
     return res.status(500).json({ message: "Terjadi kesalahan server", error: err.message });
+  }
+};
+
+exports.getFinanceSummaryToday = async (req, res) => {
+  try {
+    const { storeId } = req.query;
+
+    if (!storeId) {
+      return res.status(400).json({ message: "storeId wajib dikirim" });
+    }
+
+    // Ambil waktu hari ini (awal dan akhir)
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // Query total income dan expense hari ini
+    const [incomeResult, expanseResult] = await Promise.all([
+      FinanceRecords.sum('amount', {
+        where: {
+          storeId,
+          type: 'income',
+          createdAt: { [Op.between]: [startOfDay, endOfDay] },
+        },
+      }),
+      FinanceRecords.sum('amount', {
+        where: {
+          storeId,
+          type: 'expanse',
+          createdAt: { [Op.between]: [startOfDay, endOfDay] },
+        },
+      }),
+    ]);
+
+    const income = incomeResult || 0;
+    const expenses = expanseResult || 0;
+
+    return res.status(200).json({
+      message: "Rekap keuangan hari ini berhasil diambil",
+      data: {
+        income,
+        expenses,
+      },
+    });
+
+  } catch (err) {
+    console.error("Error getFinanceSummaryToday:", err);
+    return res.status(500).json({
+      message: "Terjadi kesalahan server",
+      error: err.message,
+    });
   }
 };
