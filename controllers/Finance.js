@@ -1,5 +1,5 @@
 // controllers/CashierController.js
-const { CashierSession, CashierFundBalance, FinanceRecords } = require('../models')
+const { CashierSession, CashierFundBalance, FinanceRecords, Fund } = require('../models')
 const { Op } = require('sequelize');
 
 exports.addIncome = async (req, res) => {
@@ -182,3 +182,47 @@ exports.getFinanceSummaryToday = async (req, res) => {
     });
   }
 };
+
+exports.getFinance = async (req, res) => {
+  try {
+    const { storeId } = req.query;
+
+    if (!storeId) {
+      return res.status(400).json({ message: "storeId wajib dikirim" });
+    }
+
+    const records = await FinanceRecords.findAll({
+      where: { storeId },
+      include: [
+        {
+          model: Fund,
+          as: "fund",
+          attributes: ["name"],
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+    });
+
+    // Ubah format agar FE mudah konsumsi
+    const formatted = records.map((r) => ({
+      id: r.id,
+      name_fund: r.fund ? r.fund.name : "-",
+      amount: parseFloat(r.amount),
+      type: r.type,
+      status: r.type === "income" ? "Pemasukan" : "Pengeluaran",
+      note: r.note || "-",
+      createdAt: r.createdAt,
+    }));
+
+    return res.status(200).json({
+      message: "Data keuangan berhasil diambil",
+      data: formatted,
+    });
+  } catch (err) {
+    console.error("Error getFinance:", err);
+    return res.status(500).json({
+      message: "Terjadi kesalahan server",
+      error: err.message,
+    });
+  }
+}

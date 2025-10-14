@@ -49,12 +49,45 @@ exports.addProduct = async (req, res) => {
 
 exports.getProduct = async (req, res) => {
   try {
-    const { storeId, page = 1, limit = 10 } = req.query;
+    const { storeId, page = 1, limit = 10, all } = req.query;
 
     if (!storeId) {
       return res.status(400).json({ message: "storeId is required" });
     }
 
+    // Jika all=true, ambil semua produk tanpa pagination
+    if (all === "true") {
+      const products = await Product.findAll({
+        where: { storeId },
+        include: [
+          {
+            model: Categorie,
+            as: "categorie",
+            attributes: ["id", "name"],
+          },
+          {
+            model: Brand,
+            as: "brand",
+            attributes: ["id", "name"],
+          },
+          {
+            model: Store,
+            as: "store",
+            attributes: ["id", "nameOutlet"],
+          },
+        ],
+        order: [["createdAt", "DESC"]],
+      });
+
+      return res.json({
+        data: products,
+        totalProducts: products.length,
+        totalPages: 1,
+        currentPage: 1,
+      });
+    }
+
+    // Pagination normal
     const pageInt = parseInt(page) || 1;
     const limitInt = parseInt(limit) || 10;
     const offset = (pageInt - 1) * limitInt;
@@ -64,21 +97,21 @@ exports.getProduct = async (req, res) => {
       include: [
         {
           model: Categorie,
-          as: 'categorie',
-          attributes: ['id', 'name']
+          as: "categorie",
+          attributes: ["id", "name"],
         },
         {
           model: Brand,
-          as: 'brand',
-          attributes: ['id', 'name']
+          as: "brand",
+          attributes: ["id", "name"],
         },
         {
           model: Store,
-          as: 'store',
-          attributes: ['id', 'nameOutlet']
-        }
+          as: "store",
+          attributes: ["id", "nameOutlet"],
+        },
       ],
-      order: [['createdAt', 'DESC']],
+      order: [["createdAt", "DESC"]],
       limit: limitInt,
       offset: offset,
     });
@@ -92,7 +125,6 @@ exports.getProduct = async (req, res) => {
       currentPage: pageInt,
       totalItems: count,
     });
-
   } catch (err) {
     console.error("Error getProduct:", err);
     res.status(500).json({ message: "Internal server error" });
@@ -114,3 +146,107 @@ exports.getProductAll = async (req, res) => {
       res.status(500).json({ message: "Internal server error" }); 
     } };
 
+exports.deleteProduct = async (req, res) => {
+  try {
+    const { id } = req.params
+
+    if (!id) {
+      return res.status(400).json({ message: "Product ID is required" })
+    }
+
+    const product = await Product.findByPk(id)
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" })
+    }
+
+    await product.destroy()
+
+    return res.json({
+      message: "Produk berhasil dihapus",
+      deletedId: id
+    })
+  } catch (err) {
+    console.error("Error deleteProduct:", err)
+    res.status(500).json({ message: "Internal server error" })
+  }
+}
+
+exports.updateProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      description,
+      brandId,
+      categoryId,
+      purchasePrice,
+      agentPrice,
+      retailPrice,
+      stok,
+      minimumStok,
+      typeProduct
+    } = req.body;
+
+    const product = await Product.findByPk(id);
+    if (!product) {
+      return res.status(404).json({ message: 'Produk tidak ditemukan' });
+    }
+
+    await product.update({
+      name,
+      description,
+      brandId,
+      categoryId,
+      purchasePrice,
+      agentPrice,
+      retailPrice,
+      stok,
+      minimumStok,
+      typeProduct
+    });
+
+    res.json({ message: 'Produk berhasil diperbarui ✅', data: product });
+  } catch (err) {
+    console.error('Gagal update produk:', err);
+    res.status(500).json({ message: 'Gagal update produk' });
+  }
+};
+
+exports.getProductById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ message: "Product ID is required" });
+    }
+
+    const product = await Product.findByPk(id, {
+      include: [
+        {
+          model: Categorie,
+          as: 'categorie',
+          attributes: ['id', 'name']
+        },
+        {
+          model: Brand,
+          as: 'brand',
+          attributes: ['id', 'name']
+        },
+        {
+          model: Store,
+          as: 'store',
+          attributes: ['id', 'nameOutlet']
+        }
+      ]
+    });
+
+    if (!product) {
+      return res.status(404).json({ message: "Produk tidak ditemukan" });
+    }
+
+    return res.json(product);
+  } catch (err) {
+    console.error("Error getProductById:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
