@@ -1,4 +1,4 @@
-const { addFund, getFund, getFundDefault, getFundExceptDefault, topupFund, transferFund } = require('../controllers/Fund');
+const { addFund, getFund, getFundDefault, getFundExceptDefault, topupFund, transferFund, getFundBalancesBySession } = require('../controllers/Fund');
 const authMiddleware = require('../middleware/authMiddleware');
 
 var express = require('express');
@@ -14,5 +14,6 @@ router.post('/transfer', transferFund);
 router.get('/:storeId', getFund);
 router.get('/default/:storeId', getFundDefault);
 router.get('/except-default/:storeId', getFundExceptDefault);
+router.get('/:storeId/:cashierSessionId', getFundBalancesBySession);
 
 module.exports = router;

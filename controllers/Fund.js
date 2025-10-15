@@ -265,3 +265,49 @@ exports.transferFund = async (req, res) => {
     return res.status(500).json({ message: "Terjadi kesalahan", error: error.message });
   }
 };
+
+exports.getFundBalancesBySession = async (req, res) => {
+  try {
+    const { storeId, cashierSessionId } = req.params;
+
+    if (!storeId || !cashierSessionId) {
+      return res.status(400).json({ message: "storeId dan cashierSessionId wajib dikirim" });
+    }
+
+    // Ambil semua fund milik store
+    const funds = await Fund.findAll({
+      where: { storeId: storeId },
+      raw: true
+    });
+
+    // Ambil semua balance fund pada session kasir
+    const balances = await CashierFundBalance.findAll({
+      where: { cashierSessionId: cashierSessionId },
+      include: [
+        {
+          model: Fund,
+          as: 'fundSource',
+          attributes: ['id', 'name']
+        }
+      ],
+      raw: true,
+      nest: true
+    });
+
+    // Gabungkan data fund dan balance
+    const result = funds.map((fund) => {
+      const balanceData = balances.find(b => b.fundSourceId === fund.id);
+      return {
+        id: fund.id,
+        title: fund.name,
+        openingBalance: balanceData ? parseFloat(balanceData.openingBalance) : 0,
+        currentBalance: balanceData ? parseFloat(balanceData.currentBalance) : 0,
+      };
+    });
+
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    console.error("Error getFundBalancesBySession:", error);
+    return res.status(500).json({ message: "Internal server error", error: error.message });
+  }
+};
