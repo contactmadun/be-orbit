@@ -43,6 +43,11 @@ module.exports = (sequelize, DataTypes) => {
             foreignKey: 'storeId',
             as: 'store',
         });
+
+        Token.belongsTo(models.User, {
+          foreignKey: 'createdBy',
+          as: 'creator',
+        });
     };
 
     return Token;

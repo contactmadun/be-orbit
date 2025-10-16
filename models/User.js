@@ -66,6 +66,11 @@ module.exports = (sequelize, DataTypes) => {
             foreignKey: 'storeId',
             as: 'store',
         });
+
+        User.hasMany(models.Token, {
+          foreignKey: 'createdBy',
+          as: 'tokens',
+        });
     };
 
     return User;
