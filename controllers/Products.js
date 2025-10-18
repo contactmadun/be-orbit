@@ -183,9 +183,10 @@ exports.updateProduct = async (req, res) => {
       agentPrice,
       retailPrice,
       stok,
-      minimumStok,
-      typeProduct
+      minimumStok
     } = req.body;
+
+    const typeProduct = req.body.typeProduct === true ? "inject" : "stok";
 
     const product = await Product.findByPk(id);
     if (!product) {
