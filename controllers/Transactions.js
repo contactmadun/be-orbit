@@ -189,17 +189,30 @@ exports.addTransaction = async (req, res) => {
 
     const trxId = `TRX-${dd}${mm}${String(counter).padStart(3, "0")}`;
 
+      // ✅ Generate kode VAC acak (huruf + angka, 5 karakter)
+    function generateVAC(length = 5) {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let vac = '';
+      for (let i = 0; i < length; i++) {
+        vac += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return vac;
+    }
+
     const results = [];
     let totalSum = 0;       // total harga jual
     let sumCostPrice = 0;   // total modal
 
     // ✅ Buat transaksi per item
     for (const item of items) {
+      const vac = generateVAC();
+
       const trx = await Transaction.create({
         trxId,
         storeId,
         cashier_session_id,
         fund_source_id,
+        resourceFund,
         product_id: item.product_id,
         customer_name: customerName, 
         customer_phone: phoneNumber,
@@ -210,7 +223,8 @@ exports.addTransaction = async (req, res) => {
         profit: item.profit,
         status,
         transaction_type,
-        note
+        note,
+        vac
       }, { transaction: t });
 
       results.push(trx);
@@ -852,5 +866,169 @@ exports.payBon = async (req, res) => {
     await t.rollback();
     console.error("Gagal melunasi bon:", err);
     res.status(500).json({ message: "Gagal melunasi bon", error: err.message });
+  }
+};
+
+exports.getTransactionDetail = async (req, res) => {
+  try {
+    const { id } = req.params; // bisa pakai id atau trxId
+    if (!id) {
+      return res.status(400).json({ message: "id atau trxId wajib dikirim" });
+    }
+
+    // cari transaksi berdasarkan id atau trxId
+    const transaction = await Transaction.findOne({
+      where: {
+        [Op.or]: [
+          { id: id },
+          { trxId: id }
+        ]
+      },
+      include: [
+        {
+          model: Product,
+          as: "product",
+          attributes: ["id", "name", "purchasePrice", "retailPrice"]
+        },
+        {
+          model: Fund,
+          as: "fund",
+          attributes: ["id", "name", "isDefault"]
+        },
+        {
+          model: CashierSession,
+          as: "cashier_session",
+          attributes: ["id", "openedAt", "closedAt", "status"]
+        }
+      ]
+    });
+
+    if (!transaction) {
+      return res.status(404).json({ message: "Transaksi tidak ditemukan" });
+    }
+
+    // format respons
+    const detail = {
+      id: transaction.id,
+      trxId: transaction.trxId,
+      customer: {
+        name: transaction.customer_name || "-",
+        phone: transaction.customer_phone || "-"
+      },
+      product: transaction.product ? {
+        id: transaction.product.id,
+        name: transaction.product.name,
+        // price: transaction.retailPrice,
+        // costPrice: transaction.purchasePrice
+      } : null,
+      qty: transaction.qty,
+      costPrice: parseFloat(transaction.cost_price),
+      total: parseFloat(transaction.total),
+      profit: parseFloat(transaction.profit),
+      vac: transaction.vac,
+      note: transaction.note,
+      status: transaction.status,
+      transaction_type: transaction.transaction_type,
+      fund_source: transaction.fund_source ? transaction.fund_source.name : "-",
+      cashier_session: transaction.cashier_session
+        ? {
+            id: transaction.cashier_session.id,
+            status: transaction.cashier_session.status,
+            open_time: transaction.cashier_session.openedAt,
+            close_time: transaction.cashier_session.closedAt
+          }
+        : null,
+      createdAt: transaction.createdAt,
+      updatedAt: transaction.updatedAt
+    };
+
+    return res.json(detail);
+  } catch (error) {
+    console.error("Error getTransactionDetail:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+exports.voidTransaction = async (req, res) => {
+  const t = await Transaction.sequelize.transaction();
+  try {
+    const { id } = req.params;
+    const { vac } = req.body;
+
+    if (!vac) return res.status(400).json({ message: "Kode VAC wajib dikirim" });
+
+    // Ambil transaksi asli
+    const trx = await Transaction.findOne({ where: { id }, transaction: t });
+    if (!trx) {
+      await t.rollback();
+      return res.status(404).json({ message: "Transaksi tidak ditemukan" });
+    }
+
+    // Validasi VAC
+    if (trx.vac !== vac) {
+      await t.rollback();
+      return res.status(400).json({ message: "Kode VAC tidak valid" });
+    }
+
+    // Pastikan belum void
+    if (trx.status === "Void") {
+      await t.rollback();
+      return res.status(400).json({ message: "Transaksi sudah di-void" });
+    }
+
+    // Ambil fund balance (default dan resource)
+    const { cashier_session_id, fund_source_id, storeId, total, cost_price, profit, status } = trx;
+
+    // fundSource (uang penjualan)
+    const fundBalance = await CashierFundBalance.findOne({
+      where: { cashierSessionId: cashier_session_id, fundSourceId: fund_source_id },
+      transaction: t,
+      lock: t.LOCK.UPDATE
+    });
+
+    // resourceFund (modal)
+    const resourceFundBalance = trx.resourceFund
+      ? await CashierFundBalance.findOne({
+          where: { cashierSessionId: cashier_session_id, fundSourceId: trx.resourceFund },
+          transaction: t,
+          lock: t.LOCK.UPDATE
+        })
+      : null;
+
+    // Rollback saldo jika transaksi Lunas
+    if (status === "Lunas") {
+      if (fundBalance) {
+        const current = parseFloat(fundBalance.currentBalance) || 0;
+        await fundBalance.update(
+          { currentBalance: current - parseFloat(total) },
+          { transaction: t }
+        );
+      }
+
+      if (resourceFundBalance) {
+        const current = parseFloat(resourceFundBalance.currentBalance) || 0;
+        await resourceFundBalance.update(
+          { currentBalance: current + parseFloat(cost_price) },
+          { transaction: t }
+        );
+      }
+    }
+
+    // Update status transaksi → Void
+    await trx.update(
+      {
+        status: "Void",
+        profit: 0, // profit dihapus
+        note: trx.note ? `${trx.note} [VOIDED ${new Date().toLocaleString("id-ID")}]` : `[VOIDED ${new Date().toLocaleString("id-ID")}]`
+      },
+      { transaction: t }
+    );
+
+    await t.commit();
+    res.json({ message: "Transaksi berhasil di-void", transaction: trx });
+  } catch (error) {
+    await t.rollback();
+    console.error("Error voidTransaction:", error);
+    res.status(500).json({ message: "Gagal void transaksi", error: error.message });
   }
 };

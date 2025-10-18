@@ -22,6 +22,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.BIGINT,
         allowNull: true,
       },
+      resourceFund: {
+        type: DataTypes.BIGINT,
+        allowNull: true,
+      },
       product_id: {
         type: DataTypes.BIGINT,
         allowNull: true,
@@ -67,6 +71,9 @@ module.exports = (sequelize, DataTypes) => {
       },
       note: {
         type: DataTypes.TEXT
+      },
+      vac: {
+        type: DataTypes.STRING
       },
       createdAt: {
         type: DataTypes.DATE,
