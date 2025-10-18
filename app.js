@@ -15,6 +15,7 @@ var productRouter = require('./routes/product');
 var transactionRouter = require('./routes/transaction');
 var financeRouter = require('./routes/finance');
 var reportRouter = require('./routes/report');
+var ocrRouter = require('./routes/ocr');
 
 var app = express();
 
@@ -35,5 +36,6 @@ app.use('/brand', brandRouter);
 app.use('/transaction', transactionRouter);
 app.use('/finance', financeRouter);
 app.use('/report', reportRouter);
+app.use('/ocr', ocrRouter);
 
 module.exports = app;

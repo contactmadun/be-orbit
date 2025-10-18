@@ -7,7 +7,7 @@ const v = new Validator();
 exports.addTransactionManual = async (req, res) => {
   const t = await Transaction.sequelize.transaction();
   try {
-    const { storeId, cashier_session_id, fund_source_id, customerName, phoneNumber, items, note, status, transaction_type } = req.body;
+    const { storeId, cashier_session_id, fund_source_id, resourceFund, customerName, phoneNumber, items, note, status, transaction_type } = req.body;
 
     // --- cek cashier session ---
     const session = await CashierSession.findOne({
@@ -50,13 +50,24 @@ exports.addTransactionManual = async (req, res) => {
     }
     const trxId = `TRX-${dd}${mm}${String(counter).padStart(3, "0")}`;
 
+    function generateVAC(length = 5) {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let vac = '';
+      for (let i = 0; i < length; i++) {
+        vac += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return vac;
+    }
+
     // --- buat transaksi manual (hanya 1 item) ---
     const item = items[0];
+    const vac = generateVAC();
     const trx = await Transaction.create({
       trxId,
       storeId,
       cashier_session_id,
       fund_source_id,
+      resourceFund,
       product_id: item.product_id,
       qty: item.qty,
       cost_price: item.cost_price,
@@ -67,7 +78,8 @@ exports.addTransactionManual = async (req, res) => {
       customer_phone: phoneNumber,
       status,
       transaction_type,
-      note
+      note,
+      vac
     }, { transaction: t });
 
     const totalSum = parseFloat(item.total) || 0;
@@ -104,9 +116,9 @@ exports.addTransactionManual = async (req, res) => {
     // ==================================================
     // 2. Jika ada fund_source_id, kurangi cost_price
     // ==================================================
-    if (fund_source_id) {
+    if (resourceFund) {
       const fundBalance = await CashierFundBalance.findOne({
-        where: { cashierSessionId: cashier_session_id, fundSourceId: fund_source_id },
+        where: { cashierSessionId: cashier_session_id, fundSourceId: resourceFund },
         transaction: t,
         lock: t.LOCK.UPDATE
       });
