@@ -16,6 +16,7 @@ var transactionRouter = require('./routes/transaction');
 var financeRouter = require('./routes/finance');
 var reportRouter = require('./routes/report');
 var ocrRouter = require('./routes/ocr');
+var stockRouter = require('./routes/stock');
 
 var app = express();
 
@@ -37,5 +38,6 @@ app.use('/transaction', transactionRouter);
 app.use('/finance', financeRouter);
 app.use('/report', reportRouter);
 app.use('/ocr', ocrRouter);
+app.use('/stock-opname', stockRouter);
 
 module.exports = app;

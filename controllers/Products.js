@@ -49,32 +49,28 @@ exports.addProduct = async (req, res) => {
 
 exports.getProduct = async (req, res) => {
   try {
-    const { storeId, page = 1, limit = 10, all } = req.query;
+    const { storeId, brandId, page = 1, limit = 10, all } = req.query;
 
-    if (!storeId) {
-      return res.status(400).json({ message: "storeId is required" });
+    if (!storeId && !brandId) {
+      return res.status(400).json({ message: "storeId or brandId is required" });
     }
 
-    // Jika all=true, ambil semua produk tanpa pagination
+    // Filter dasar
+    const where = {};
+    if (storeId) where.storeId = storeId;
+    if (brandId) {
+      where.brandId = brandId;
+      where.typeProduct = "stok"; // hanya ambil yang stok jika ada brandId
+    }
+
+    // Jika "all=true", ambil semua tanpa pagination
     if (all === "true") {
       const products = await Product.findAll({
-        where: { storeId },
+        where,
         include: [
-          {
-            model: Categorie,
-            as: "categorie",
-            attributes: ["id", "name"],
-          },
-          {
-            model: Brand,
-            as: "brand",
-            attributes: ["id", "name"],
-          },
-          {
-            model: Store,
-            as: "store",
-            attributes: ["id", "nameOutlet"],
-          },
+          { model: Categorie, as: "categorie", attributes: ["id", "name"] },
+          { model: Brand, as: "brand", attributes: ["id", "name"] },
+          { model: Store, as: "store", attributes: ["id", "nameOutlet"] },
         ],
         order: [["createdAt", "DESC"]],
       });
@@ -88,32 +84,20 @@ exports.getProduct = async (req, res) => {
     }
 
     // Pagination normal
-    const pageInt = parseInt(page) || 1;
-    const limitInt = parseInt(limit) || 10;
+    const pageInt = parseInt(page);
+    const limitInt = parseInt(limit);
     const offset = (pageInt - 1) * limitInt;
 
     const { count, rows } = await Product.findAndCountAll({
-      where: { storeId },
+      where,
       include: [
-        {
-          model: Categorie,
-          as: "categorie",
-          attributes: ["id", "name"],
-        },
-        {
-          model: Brand,
-          as: "brand",
-          attributes: ["id", "name"],
-        },
-        {
-          model: Store,
-          as: "store",
-          attributes: ["id", "nameOutlet"],
-        },
+        { model: Categorie, as: "categorie", attributes: ["id", "name"] },
+        { model: Brand, as: "brand", attributes: ["id", "name"] },
+        { model: Store, as: "store", attributes: ["id", "nameOutlet"] },
       ],
       order: [["createdAt", "DESC"]],
       limit: limitInt,
-      offset: offset,
+      offset,
     });
 
     const totalPages = Math.ceil(count / limitInt);
@@ -130,6 +114,7 @@ exports.getProduct = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
 
 exports.getProductAll = async (req, res) => { 
   try { const { storeId } = req.query; 
