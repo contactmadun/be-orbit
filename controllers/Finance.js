@@ -1,228 +1,273 @@
 // controllers/CashierController.js
-const { CashierSession, CashierFundBalance, FinanceRecords, Fund } = require('../models')
-const { Op } = require('sequelize');
+const {
+  CashierSession,
+  AccountMutation,
+  Fund,
+  FinanceRecords,
+  Reports,
+} = require("../models");
+const { Op, fn, col, literal } = require("sequelize");
 
-exports.addIncome = async (req, res) => {
-  const { storeId, cashier_session_id, fund_source_id, nominal, note } = req.body;
-
+exports.getMutation = async (req, res) => {
   try {
-    // Validasi input
-    if (!storeId || !cashier_session_id || !fund_source_id || !nominal) {
-      return res.status(400).json({ message: "Data tidak lengkap" });
+    const tenantId = req.user.tenantId;
+    const outletId = req.user.outletId;
+
+    // =========================
+    // 🔥 QUERY PARAMS
+    // =========================
+    let {
+      page = 1,
+      limit = 30,
+      search = "",
+      type,
+      source,
+      accountId,
+      startDate,
+      endDate,
+    } = req.query;
+
+    page = Number(page);
+    limit = Number(limit);
+    const offset = (page - 1) * limit;
+
+    // =========================
+    // 🔍 WHERE CONDITION
+    // =========================
+    const where = {
+      tenantId,
+      outletId,
+    };
+
+    // 🔎 SEARCH
+    if (search) {
+      where[Op.or] = [
+        { referenceType: { [Op.like]: `%${search}%` } },
+        { note: { [Op.like]: `%${search}%` } },
+      ];
     }
 
-    // Cek session kasir
-    const session = await CashierSession.findOne({
-      where: { id: cashier_session_id, storeId }
-    });
-
-    if (!session) {
-      return res.status(404).json({ message: "Session kasir tidak ditemukan" });
+    // 📊 FILTER TYPE
+    if (type) {
+      where.type = type;
     }
 
-    // Buat record baru di finance_records
-    const record = await FinanceRecords.create({
-      storeId,
-      cashierSessionId: cashier_session_id,
-      fundSourceId: fund_source_id,
-      type: "income",
-      amount: nominal,
-      note: note || "",
-      createdAt: new Date(),
-      updatedAt: new Date()
-    });
-
-    // Update atau buat currentBalance di CashierFundBalance
-    let fundBalance = await CashierFundBalance.findOne({
-      where: { cashierSessionId: cashier_session_id, fundSourceId: fund_source_id }
-    });
-
-    if (fundBalance) {
-      fundBalance.currentBalance = parseFloat(fundBalance.currentBalance) + parseFloat(nominal);
-      await fundBalance.save();
-    } else {
-      fundBalance = await CashierFundBalance.create({
-        cashierSessionId: cashier_session_id,
-        fundSourceId: fund_source_id,
-        openingBalance: 0, // default kalau belum ada
-        currentBalance: nominal,
-        closingBalance: null,
-        variance: 0,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
+    // 📊 FILTER SOURCE
+    if (source) {
+      where.source = source;
     }
 
-    return res.status(201).json({
-      message: "Pemasukan berhasil dicatat",
-      data: {
-        record,
-        fundBalance
-      }
-    });
-
-  } catch (err) {
-    console.error("Error income:", err);
-    return res.status(500).json({ message: "Terjadi kesalahan server", error: err.message });
-  }
-};
-
-exports.addExpanse = async (req, res) => {
-  const { storeId, cashier_session_id, fund_source_id, nominal, note } = req.body;
-
-  try {
-    // Validasi input
-    if (!storeId || !cashier_session_id || !fund_source_id || !nominal) {
-      return res.status(400).json({ message: "Data tidak lengkap" });
+    // 📊 FILTER ACCOUNT
+    if (accountId) {
+      where.accountId = accountId;
     }
 
-    // Cek session kasir
-    const session = await CashierSession.findOne({
-      where: { id: cashier_session_id, storeId }
-    });
-
-    if (!session) {
-      return res.status(404).json({ message: "Session kasir tidak ditemukan" });
+    // 📅 DATE FILTER
+    if (startDate && endDate) {
+      where.createdAt = {
+        [Op.between]: [new Date(startDate), new Date(endDate)],
+      };
     }
 
-    // Buat record baru di finance_records
-    const record = await FinanceRecords.create({
-      storeId,
-      cashierSessionId: cashier_session_id,
-      fundSourceId: fund_source_id,
-      type: "expanse",
-      amount: nominal,
-      note: note || "",
-      createdAt: new Date(),
-      updatedAt: new Date()
-    });
+    // =========================
+    // 🔥 QUERY
+    // =========================
+    const { count, rows } = await AccountMutation.findAndCountAll({
+      where,
+      limit,
+      offset,
 
-    // Update atau buat currentBalance di CashierFundBalance
-    let fundBalance = await CashierFundBalance.findOne({
-      where: { cashierSessionId: cashier_session_id, fundSourceId: fund_source_id }
-    });
+      order: [["createdAt", "DESC"]],
 
-    if (fundBalance) {
-      // Cek apakah saldo cukup
-      const newBalance = parseFloat(fundBalance.currentBalance) - parseFloat(nominal);
-      if (newBalance < 0) {
-        return res.status(400).json({ message: "Saldo tidak mencukupi untuk pengeluaran ini" });
-      }
+      attributes: [
+        "id",
+        "type",
+        "amount",
+        "balanceBefore",
+        "balanceAfter",
+        "referenceType",
+        "referenceId",
+        "source",
+        "note",
+        "createdAt",
+      ],
 
-      fundBalance.currentBalance = newBalance;
-      await fundBalance.save();
-    } else {
-      // Kalau fundBalance belum ada, artinya saldo awal 0, otomatis tidak bisa expense
-      return res.status(400).json({ message: "Saldo sumber dana tidak ditemukan, tidak bisa melakukan pengeluaran" });
-    }
-
-    return res.status(201).json({
-      message: "Pengeluaran berhasil dicatat",
-      data: {
-        record,
-        fundBalance
-      }
-    });
-
-  } catch (err) {
-    console.error("Error expense:", err);
-    return res.status(500).json({ message: "Terjadi kesalahan server", error: err.message });
-  }
-};
-
-exports.getFinanceSummaryToday = async (req, res) => {
-  try {
-    const { storeId } = req.query;
-
-    if (!storeId) {
-      return res.status(400).json({ message: "storeId wajib dikirim" });
-    }
-
-    // Ambil waktu hari ini (awal dan akhir)
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-
-    const endOfDay = new Date();
-    endOfDay.setHours(23, 59, 59, 999);
-
-    // Query total income dan expense hari ini
-    const [incomeResult, expanseResult] = await Promise.all([
-      FinanceRecords.sum('amount', {
-        where: {
-          storeId,
-          type: 'income',
-          createdAt: { [Op.between]: [startOfDay, endOfDay] },
-        },
-      }),
-      FinanceRecords.sum('amount', {
-        where: {
-          storeId,
-          type: 'expanse',
-          createdAt: { [Op.between]: [startOfDay, endOfDay] },
-        },
-      }),
-    ]);
-
-    const income = incomeResult || 0;
-    const expenses = expanseResult || 0;
-
-    return res.status(200).json({
-      message: "Rekap keuangan hari ini berhasil diambil",
-      data: {
-        income,
-        expenses,
-      },
-    });
-
-  } catch (err) {
-    console.error("Error getFinanceSummaryToday:", err);
-    return res.status(500).json({
-      message: "Terjadi kesalahan server",
-      error: err.message,
-    });
-  }
-};
-
-exports.getFinance = async (req, res) => {
-  try {
-    const { storeId } = req.query;
-
-    if (!storeId) {
-      return res.status(400).json({ message: "storeId wajib dikirim" });
-    }
-
-    const records = await FinanceRecords.findAll({
-      where: { storeId },
       include: [
         {
           model: Fund,
-          as: "fund",
-          attributes: ["name"],
+          as: "account",
+          attributes: ["id", "nameBank", "type"],
+        },
+        {
+          model: CashierSession,
+          as: "session",
+          attributes: [
+            "id",
+            "openedAt",
+            "closedAt",
+            "status", // ✅ pakai ini, bukan shift
+          ],
+          required: false,
         },
       ],
-      order: [["createdAt", "DESC"]],
     });
 
-    // Ubah format agar FE mudah konsumsi
-    const formatted = records.map((r) => ({
-      id: r.id,
-      name_fund: r.fund ? r.fund.name : "-",
-      amount: parseFloat(r.amount),
-      type: r.type,
-      status: r.type === "income" ? "Pemasukan" : "Pengeluaran",
-      note: r.note || "-",
-      createdAt: r.createdAt,
-    }));
-
-    return res.status(200).json({
-      message: "Data keuangan berhasil diambil",
-      data: formatted,
+    // =========================
+    // 📦 RESPONSE
+    // =========================
+    return res.json({
+      success: true,
+      data: rows,
+      pagination: {
+        total: count,
+        page,
+        limit,
+        totalPages: Math.ceil(count / limit),
+      },
     });
   } catch (err) {
-    console.error("Error getFinance:", err);
+    console.error(err);
+
     return res.status(500).json({
-      message: "Terjadi kesalahan server",
-      error: err.message,
+      success: false,
+      message: "Gagal mengambil data mutasi akun",
     });
   }
-}
+};
+
+exports.getCashflow = async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const outletId = req.query.outletId || req.user.outletId;
+
+    // =========================
+    // 📅 RANGE BULAN INI
+    // =========================
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      0,
+      23,
+      59,
+      59,
+    );
+
+    const whereBase = {
+      tenantId,
+      ...(outletId !== "all" && { outletId }),
+      createdAt: {
+        [Op.between]: [startOfMonth, endOfMonth],
+      },
+    };
+
+    // =========================
+    // 💰 INCOME (FinanceRecords)
+    // =========================
+    const incomeRecords = await FinanceRecords.findAll({
+      where: {
+        ...whereBase,
+        type: "income",
+      },
+      attributes: [
+        [fn("DATE", col("createdAt")), "date"],
+        [fn("SUM", col("amount")), "total"],
+      ],
+      group: [fn("DATE", col("createdAt"))],
+      raw: true,
+    });
+
+    // =========================
+    // 💸 EXPENSE
+    // =========================
+    const expenseRecords = await FinanceRecords.findAll({
+      where: {
+        ...whereBase,
+        type: "expense",
+      },
+      attributes: [
+        [fn("DATE", col("createdAt")), "date"],
+        [fn("SUM", col("amount")), "total"],
+      ],
+      group: [fn("DATE", col("createdAt"))],
+      raw: true,
+    });
+
+    // =========================
+    // 📊 PROFIT (Reports)
+    // =========================
+    const reportProfit = await Reports.findAll({
+      where: {
+        tenantId,
+        ...(outletId !== "all" && { outletId }),
+        openedAt: {
+          [Op.between]: [startOfMonth, endOfMonth],
+        },
+      },
+      attributes: [
+        [fn("DATE", col("openedAt")), "date"],
+        [fn("SUM", col("totalProfit")), "total"],
+        [fn("SUM", col("totalTrx")), "trx"],
+      ],
+      group: [fn("DATE", col("openedAt"))],
+      raw: true,
+    });
+
+    // =========================
+    // 🧠 MERGE DATA PER TANGGAL
+    // =========================
+    const daysInMonth = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      0,
+    ).getDate();
+
+    const result = [];
+
+    for (let i = 1; i <= daysInMonth; i++) {
+      const date = new Date(now.getFullYear(), now.getMonth(), i)
+        .toISOString()
+        .slice(0, 10);
+
+      const incomeFinance =
+        incomeRecords.find((d) => d.date === date)?.total || 0;
+
+      const incomeReport =
+        reportProfit.find((d) => d.date === date)?.total || 0;
+
+      const expense = expenseRecords.find((d) => d.date === date)?.total || 0;
+
+      const income = Number(incomeFinance) + Number(incomeReport);
+      const net = income - Number(expense);
+
+      result.push({
+        date,
+        income,
+        expense: Number(expense),
+        net,
+      });
+    }
+
+    // =========================
+    // 📊 SUMMARY
+    // =========================
+    const totalIncome = result.reduce((s, d) => s + d.income, 0);
+    const totalExpense = result.reduce((s, d) => s + d.expense, 0);
+
+    return res.json({
+      success: true,
+      data: result,
+      summary: {
+        totalIncome,
+        totalExpense,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      success: false,
+      message: "Gagal load cashflow",
+    });
+  }
+};

@@ -1,239 +1,310 @@
-// controllers/CashierController.js
-const { CashierSession, CashierFundBalance, Transaction, FinanceRecords, Reports } = require('../models')
+const { v4: uuidv4 } = require("uuid");
+const {
+  CashierSession,
+  CashierSessionBalance,
+  Sale,
+  Fund,
+  sequelize,
+  Reports,
+} = require("../models");
 
-exports.openCashier = async (req, res) => {
-  const { userId, storeId, funds } = req.body
-  // funds = [{ fundSourceId: 1, amount: 100000 }, { fundSourceId: 2, amount: 50000 }]
+exports.openCashierSession = async (req, res) => {
+  const t = await sequelize.transaction();
 
   try {
-    // 1. buat session kasir baru
-    const session = await CashierSession.create({
-      userId,
-      storeId,
-      openedAt: new Date(),
-      status: 'open'
-    })
+    const { tenantId, outletId, id: userId } = req.user;
 
-    // 2. isi tabel fund balances
-    const balances = await Promise.all(
-      funds.map(f => CashierFundBalance.create({
-        cashierSessionId: session.id,
-        fundSourceId: f.fundSourceId,
-        openingBalance: f.amount,
-        currentBalance: f.amount
-      }))
-    )
+    // 🔒 CEK SESSION MASIH ADA
+    const existingSession = await CashierSession.findOne({
+      where: {
+        tenantId,
+        outletId,
+        status: "open",
+      },
+      transaction: t,
+    });
 
-    res.status(201).json({
-      session,
-      balances
-    })
-  } catch (err) {
-    console.error(err)
-    res.status(500).json({ message: 'Gagal membuka kasir', error: err })
-  }
-}
-
-exports.getActiveSession = async (req, res) => {
-  try {
-    const { storeId } = req.params
-    const session = await CashierSession.findOne({
-      where: { storeId, status: "open" }
-    })
-    res.json(session) // bisa null kalau tidak ada
-  } catch (err) {
-    console.error(err)
-    res.status(500).json({ message: "Gagal ambil session" })
-  }
-}
-
-  // exports.closeCashier = async (req, res) => {
-  //   const t = await CashierSession.sequelize.transaction()
-  //   try {
-  //     const { cashierSessionId, funds } = req.body
-
-  //     if (!cashierSessionId || !Array.isArray(funds)) {
-  //       return res.status(400).json({ message: "cashierSessionId & funds wajib dikirim" })
-  //     }
-
-  //     // ambil session lengkap (harus include semua kolom)
-  //     const session = await CashierSession.findOne({
-  //       where: { id: cashierSessionId, status: "open" },
-  //       transaction: t,
-  //       raw: false // penting supaya instance bisa .save()
-  //     })
-
-  //     if (!session) {
-  //       await t.rollback()
-  //       return res.status(404).json({ message: "Session tidak ditemukan atau sudah ditutup" })
-  //     }
-
-  //     let totalVariance = 0
-  //     let updatedFunds = []
-
-  //     // update fund balances
-  //     for (const f of funds) {
-  //       const fundBalance = await CashierFundBalance.findOne({
-  //         where: { cashierSessionId, fundSourceId: f.fundSourceId },
-  //         transaction: t
-  //       })
-
-  //       if (!fundBalance) continue
-
-  //       const closingBalance = parseFloat(f.amount) || 0
-  //       const variance = closingBalance - parseFloat(fundBalance.currentBalance)
-
-  //       await fundBalance.update(
-  //         { closingBalance, variance },
-  //         { transaction: t }
-  //       )
-
-  //       totalVariance += variance
-  //       updatedFunds.push({
-  //         fundSourceId: f.fundSourceId,
-  //         closingBalance,
-  //         variance
-  //       })
-  //     }
-
-  //     // update status session jadi close
-  //     await session.update(
-  //       { status: "close", closedAt: new Date() },
-  //       { transaction: t }
-  //     )
-
-  //     await t.commit()
-
-  //     return res.json({
-  //       message: "Kasir berhasil ditutup",
-  //       cashierSessionId,
-  //       totalVariance,
-  //       funds: updatedFunds
-  //     })
-  //   } catch (err) {
-  //     console.error("Error closeCashier:", err)
-  //     await t.rollback()
-  //     return res.status(500).json({ message: "Internal server error" })
-  //   }
-  // }
-
-  exports.closeCashier = async (req, res) => {
-  const t = await CashierSession.sequelize.transaction()
-  try {
-    const { cashierSessionId, funds, storeId } = req.body
-
-    if (!cashierSessionId || !Array.isArray(funds)) {
-      return res.status(400).json({ message: "cashierSessionId & funds wajib dikirim" })
+    if (existingSession) {
+      await t.rollback();
+      return res.status(400).json({
+        message: "Masih ada kasir yang terbuka di outlet ini",
+      });
     }
 
-    // ambil session
-    const session = await CashierSession.findOne({
-      where: { id: cashierSessionId, status: "open" },
+    // 🔥 AMBIL SEMUA FUND
+    const funds = await Fund.findAll({
+      where: { tenantId, outletId },
       transaction: t,
-      raw: false
-    })
+    });
+
+    if (!funds.length) {
+      await t.rollback();
+      return res.status(400).json({
+        message: "Belum ada akun dana (fund)",
+      });
+    }
+
+    // 🧾 BUAT SESSION
+    const session = await CashierSession.create(
+      {
+        tenantId,
+        outletId,
+        userId,
+        openedAt: new Date(),
+        status: "open",
+      },
+      { transaction: t },
+    );
+
+    // 💰 INSERT BALANCES (SNAPSHOT)
+    const balances = funds.map((f) => ({
+      sessionId: session.id,
+      accountId: f.id,
+      openingBalance: f.balance,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+
+    await CashierSessionBalance.bulkCreate(balances, {
+      transaction: t,
+    });
+
+    await t.commit();
+
+    return res.status(201).json({
+      message: "Kasir berhasil dibuka",
+      data: session,
+    });
+  } catch (error) {
+    await t.rollback();
+    console.error(error);
+    return res.status(500).json({
+      message: "Gagal membuka kasir",
+    });
+  }
+};
+
+exports.getActiveCashierSession = async (req, res) => {
+  try {
+    const { tenantId, outletId } = req.user;
+
+    const session = await CashierSession.findOne({
+      where: {
+        tenantId,
+        outletId,
+        status: "open",
+      },
+      include: [
+        {
+          model: CashierSessionBalance,
+          as: "balances",
+          include: [
+            {
+              model: Fund,
+              as: "account",
+              attributes: ["id", "nameAccount", "type"],
+            },
+          ],
+        },
+      ],
+      order: [["openedAt", "DESC"]],
+    });
+
+    return res.status(200).json({
+      message: "Active session",
+      data: session || null,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      message: "Gagal mengambil session kasir",
+    });
+  }
+};
+
+exports.getCashierBalances = async (req, res) => {
+  try {
+    const { tenantId, outletId } = req.user;
+
+    // 🔍 session aktif
+    const session = await CashierSession.findOne({
+      where: {
+        tenantId,
+        outletId,
+        status: "open",
+      },
+      include: [
+        {
+          model: CashierSessionBalance,
+          as: "balances",
+          include: [
+            {
+              model: Fund,
+              as: "account",
+              attributes: ["id", "nameBank", "type", "balance"],
+            },
+          ],
+        },
+      ],
+    });
 
     if (!session) {
-      await t.rollback()
-      return res.status(404).json({ message: "Session tidak ditemukan atau sudah ditutup" })
+      return res.status(404).json({
+        message: "Tidak ada kasir aktif",
+      });
     }
 
-    let totalVariance = 0
-    let updatedFunds = []
+    // 🔥 systemBalance = FUND BALANCE (REALTIME)
+    const balances = session.balances.map((b) => {
+      const systemBalance = Number(b.account.balance || 0);
 
-    // update fund balances
-    for (const f of funds) {
-      const fundBalance = await CashierFundBalance.findOne({
-        where: { cashierSessionId, fundSourceId: f.fundSourceId },
-        transaction: t
-      })
+      return {
+        id: b.id,
+        accountId: b.accountId,
+        openingBalance: Number(b.openingBalance),
+        systemBalance,
+        account: b.account,
+      };
+    });
 
-      if (!fundBalance) continue
-
-      const closingBalance = parseFloat(f.amount) || 0
-      const variance = closingBalance - parseFloat(fundBalance.currentBalance)
-
-      await fundBalance.update(
-        { closingBalance, variance },
-        { transaction: t }
-      )
-
-      totalVariance += variance
-      updatedFunds.push({
-        fundSourceId: f.fundSourceId,
-        closingBalance,
-        variance
-      })
-    }
-
-    // ==== HITUNG SUMMARY ====
-    const trxSummary = await Transaction.findOne({
-      attributes: [
-        [Transaction.sequelize.fn("COUNT", Transaction.sequelize.col("id")), "totalTrx"],
-        [Transaction.sequelize.fn("SUM", Transaction.sequelize.col("total")), "totalSales"],
-        [Transaction.sequelize.fn("SUM", Transaction.sequelize.col("profit")), "totalProfit"]
-      ],
-      where: { cashier_session_id: cashierSessionId, status: 'Lunas' },
-      raw: true,
-      transaction: t
-    })
-
-    const financeSummary = await FinanceRecords.findAll({
-      attributes: [
-        "type",
-        [FinanceRecords.sequelize.fn("SUM", FinanceRecords.sequelize.col("amount")), "total"]
-      ],
-      where: { cashierSessionId },
-      group: ["type"],
-      raw: true,
-      transaction: t
-    })
-
-    let cashIn = 0, cashOut = 0
-    financeSummary.forEach(f => {
-      if (f.type === "income") cashIn = f.total
-      if (f.type === "expanse") cashOut = f.total
-    })
-
-    // ==== SIMPAN KE TABLE REPORTS ====
-    await Reports.create({
-      storeId,
-      cashierSessionId,
-      openedAt: session.openedAt,
-      closedAt: new Date(),
-      closingBalance: updatedFunds.reduce((acc, f) => acc + (f.closingBalance || 0), 0),
-      totalTrx: trxSummary.totalTrx || 0,
-      totalSales: trxSummary.totalSales || 0,
-      totalProfit: trxSummary.totalProfit || 0, 
-      cashIn,
-      cashOut,
-      variance: totalVariance
-    }, { transaction: t })
-
-    // update session close
-    await session.update(
-      { status: "close", closedAt: new Date() },
-      { transaction: t }
-    )
-
-    await t.commit()
-
-    return res.json({
-      message: "Kasir berhasil ditutup & laporan tersimpan",
-      cashierSessionId,
-      totalVariance,
-      funds: updatedFunds,
-      report: {
-        totalTrx: trxSummary.totalTrx || 0,
-        totalSales: trxSummary.totalSales || 0,
-        totalProfit: trxSummary.totalProfit || 0,
-        cashIn,
-        cashOut
-      }
-    })
-  } catch (err) {
-    console.error("Error closeCashier:", err)
-    await t.rollback()
-    return res.status(500).json({ message: "Internal server error" })
+    return res.status(200).json({
+      message: "Cashier balances",
+      data: balances,
+    });
+  } catch (error) {
+    console.error("getCashierBalances error:", error);
+    return res.status(500).json({
+      message: "Gagal mengambil balance kasir",
+    });
   }
-}
+};
+
+exports.closeCashierSession = async (req, res) => {
+  const t = await sequelize.transaction();
+
+  try {
+    const { tenantId, outletId } = req.user;
+    const { balances, closingNote } = req.body;
+
+    // 🔍 ambil session aktif
+    const session = await CashierSession.findOne({
+      where: {
+        tenantId,
+        outletId,
+        status: "open",
+      },
+      include: [
+        {
+          model: CashierSessionBalance,
+          as: "balances",
+        },
+      ],
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!session) {
+      await t.rollback();
+      return res.status(404).json({
+        message: "Tidak ada kasir aktif",
+      });
+    }
+
+    // =============================
+    // 🔥 UPDATE BALANCES
+    // =============================
+    let totalClosing = 0;
+    let totalDifference = 0;
+
+    for (const input of balances) {
+      const balance = session.balances.find((b) => b.id === input.id);
+
+      if (!balance) continue;
+
+      const systemBalance = Number(input.systemBalance || 0);
+      const closingBalance = Number(input.closingBalance || 0);
+      const diff = closingBalance - systemBalance;
+
+      await balance.update(
+        {
+          systemBalance,
+          closingBalance,
+          difference: diff,
+        },
+        { transaction: t },
+      );
+
+      totalClosing += closingBalance;
+      totalDifference += diff;
+    }
+
+    // =============================
+    // 🔥 AMBIL DATA SALES
+    // =============================
+    const sales = await Sale.findAll({
+      where: {
+        tenantId,
+        outletId,
+        sessionId: session.id,
+        status: "paid",
+      },
+      transaction: t,
+    });
+
+    let totalOmzet = 0;
+    let totalProfit = 0;
+
+    sales.forEach((s) => {
+      totalOmzet += Number(s.totalAmount);
+      totalProfit += Number(s.totalProfit);
+    });
+
+    const totalTrx = sales.length;
+
+    // =============================
+    // 🔥 UPDATE SESSION
+    // =============================
+    await session.update(
+      {
+        status: "closed",
+        closedAt: new Date(),
+        closingNote,
+      },
+      { transaction: t },
+    );
+
+    // =============================
+    // 🔥 INSERT REPORT (SNAPSHOT)
+    // =============================
+    await Reports.create(
+      {
+        tenantId,
+        outletId,
+        sessionId: session.id,
+        openedAt: session.openedAt,
+        closedAt: new Date(),
+
+        closingBalance: totalClosing,
+        difference: totalDifference,
+
+        totalProfit,
+        totalTrx,
+        totalOmzet,
+      },
+      { transaction: t },
+    );
+
+    await t.commit();
+
+    return res.status(200).json({
+      message: "Kasir berhasil ditutup",
+    });
+  } catch (error) {
+    await t.rollback();
+    console.error(error);
+
+    return res.status(500).json({
+      message: "Gagal menutup kasir",
+    });
+  }
+};

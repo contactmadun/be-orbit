@@ -1,52 +1,117 @@
-const { Categorie } = require('../models');
-const Validator = require('fastest-validator');
+const { Categorie } = require('../models')
+const Validator = require('fastest-validator')
 
-const v = new Validator();
+const v = new Validator()
+
+/* =========================
+   ADD CATEGORY
+========================= */
 
 exports.addCat = async (req, res) => {
+
+  const tenantId = req.user.tenantId
+  console.log(req.user);
+  const schema = {
+    name: { type: "string", min: 2 },
+    description: { type: "string", optional: true },
+    status: { type: "enum", values: ["active", "inactive"] }
+  }
+
+  const validationResponse = v.validate(req.body, schema)
+
+  if (validationResponse !== true) {
+    return res.status(400).json({
+      message: "Validation failed",
+      errors: validationResponse
+    })
+  }
+
   try {
-    // Cek apakah kategori sudah ada di store ini
-    const existingCategory = await Categorie.findOne({
-      where: { storeId: req.body.storeId, name: req.body.name }
-    });
 
-    if (existingCategory) {
-      return res.status(400).json({ message: "Kategori dengan nama ini sudah ada." });
-    }
+    const category = await Categorie.create({
+      tenantId: tenantId,
+      name: req.body.name,
+      description: req.body.description,
+      status: req.body.status
+    })
 
-    // Simpan data baru
-    const newCategory = await Categorie.create({
-      storeId: req.body.storeId,
-      name: req.body.name
-    });
-
-    return res.json({
-      message: "Kategori berhasil ditambahkan",
-      id: newCategory.id,
-      name: newCategory.name
-    });
+    res.status(201).json({
+      message: "Category created",
+      data: category
+    })
 
   } catch (error) {
-    console.error(error);
-    return res.status(500).json({ message: "Internal server error" });
+
+    res.status(500).json({
+      message: "Server error",
+      error: error.message
+    })
+
   }
-};
+
+}
+
+
+/* =========================
+   GET CATEGORY BY TENANT
+========================= */
 
 exports.getCat = async (req, res) => {
-  try {
-    const { storeId } = req.query;
 
-    if (!storeId) {
-      return res.status(400).json({ message: "storeId is required" });
-    }
+  try {
+
+    const tenantId = req.user.tenantId
 
     const categories = await Categorie.findAll({
-      where: { storeId },
-    });
+      where: { tenantId },
+      order: [['createdAt', 'DESC']]
+    })
 
-    res.json(categories);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Internal server error" });
+    res.json({
+      data: categories
+    })
+
+  } catch (error) {
+
+    res.status(500).json({
+      message: "Server error",
+      error: error.message
+    })
+
   }
-};
+
+}
+
+exports.deleteCat = async (req, res) => {
+
+  try {
+
+    const tenantId = req.user.tenantId
+    const id = req.params.id
+
+    const category = await Categorie.findOne({
+      where: { id, tenantId }
+    })
+
+    if (!category) {
+      return res.status(404).json({
+        message: "Category not found"
+      })
+    }
+
+    await category.destroy()
+
+    res.json({
+      message: "Category deleted"
+    })
+
+  } catch (error) {
+
+    res.status(500).json({
+      message: "Server error",
+      error: error.message
+    })
+
+  }
+
+}
