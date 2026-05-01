@@ -1,52 +1,89 @@
-const { Brand } = require('../models');
-const Validator = require('fastest-validator');
+const { Brand } = require("../models");
+const Validator = require("fastest-validator");
 
 const v = new Validator();
 
 exports.addBrand = async (req, res) => {
+  const tenantId = req.user.tenantId;
+  const schema = {
+    name: { type: "string", min: 2 },
+    description: { type: "string", optional: true },
+    status: { type: "enum", values: ["active", "inactive"] },
+  };
+
+  const validationResponse = v.validate(req.body, schema);
+
+  if (validationResponse !== true) {
+    return res.status(400).json({
+      message: "Validation failed",
+      errors: validationResponse,
+    });
+  }
+
   try {
-    // Cek apakah kategori sudah ada di store ini
-    const existingBrand = await Brand.findOne({
-      where: { storeId: req.body.storeId, name: req.body.name }
+    const brand = await Brand.create({
+      tenantId: tenantId,
+      name: req.body.name,
+      description: req.body.description,
+      status: req.body.status,
     });
 
-    if (existingBrand) {
-      return res.status(400).json({ message: "Kategori dengan nama ini sudah ada." });
-    }
-
-    // Simpan data baru
-    const newBrand = await Brand.create({
-      storeId: req.body.storeId,
-      name: req.body.name
+    res.status(201).json({
+      message: "Brand created",
+      data: brand,
     });
-
-    return res.json({
-      message: "Kategori berhasil ditambahkan",
-      id: newBrand.id,
-      name: newBrand.name
-    });
-
   } catch (error) {
-    console.error(error);
-    return res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
   }
 };
 
 exports.getBrand = async (req, res) => {
   try {
-    const { storeId } = req.query;
-
-    if (!storeId) {
-      return res.status(400).json({ message: "storeId is required" });
-    }
+    const tenantId = req.user.tenantId;
 
     const brands = await Brand.findAll({
-      where: { storeId },
+      where: { tenantId },
+      order: [["createdAt", "DESC"]],
     });
 
-    res.json(brands);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Internal server error" });
+    res.json({
+      data: brands,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+exports.deleteBrand = async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId;
+    const id = req.params.id;
+
+    const brand = await Brand.findOne({
+      where: { id, tenantId },
+    });
+
+    if (!brand) {
+      return res.status(404).json({
+        message: "Brands not found",
+      });
+    }
+
+    await brand.destroy();
+
+    res.json({
+      message: "Brand deleted",
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
   }
 };
